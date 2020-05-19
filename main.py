@@ -27,7 +27,7 @@ if __name__=='__main__':
     # unlabel_data = read_data(args.unlabeled_file)
 
     label_data = preprocess_label(label_data)
-    test_data = label_data[0:100]
+    test_data = label_data[0:400]
     # unlabel_data = preprocess_unlabel(unlabel_data)
     # all_data = label_data + unlabel_data
 
