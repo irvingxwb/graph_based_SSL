@@ -1,5 +1,19 @@
 from collections import Counter
+from sklearn.metrics import pairwise_distances
 import numpy as np
+
+
+class Graph:
+    # k for k_nearest
+    def __init__(self, ngrams, pmi_vectors, unlabeled, k):
+        self.ngrams = ngrams
+        self.sim_matrix = pairwise_distances(pmi_vectors, metric='cosine')
+        self.unlabeled = unlabeled
+        self.graph_dic = {}
+
+        for i in range(self.sim_matrix.shape[0]):
+            arr = np.argsort(self.sim_matrix[0], axis=1)
+            self.graph_dic[ngrams[i]] = [arr[-idx-1] for idx in range(k)]
 
 
 class PMI:
@@ -17,9 +31,9 @@ class PMI:
                 if feature_name not in ngrams_feature_dict:
                     ngrams_feature_dict[feature_name] = []
 
-                # dict for 9 features
+                # dict for all context features
                 feature_dict[feature_name].append(feature)
-                # dict for 9 features with (ngram, feature) pair as elements
+                # dict for all context features with (ngram, feature) pair as elements
                 ngrams_feature_dict[feature_name].append((ngram, feature))
 
         self.feature_counters = {}
@@ -32,19 +46,22 @@ class PMI:
             self.ngrams_feature_counters[feature_name] = Counter(ngram_feature)
 
     def pmi(self, ngram, feature, feature_name):
-        count_ngram = self.ngrams_counter[ngram] if self.ngrams_counter[ngram] is not None else 0
-
-        count_feature = self.feature_counters[feature_name][feature] if self.feature_counters[feature_name][
-                                                                          feature] is not None else 0
-
-        count_ngram_feature = self.ngrams_feature_counters[feature_name][(ngram, feature)] if \
-            self.ngrams_feature_counters[feature_name][(ngram, feature)] is not None else 0
-
-        if count_ngram == 0 or count_feature == 0 or count_ngram_feature == 0:
-            score = 0
+        if self.ngrams_feature_counters[feature_name][(ngram, feature)] is not 0:
+            count_ngram_feature = self.ngrams_feature_counters[feature_name][(ngram, feature)]
         else:
-            # sum_ngrams = sum_count_feature, so there is a (* self.sum_ngrams)
-            score = np.log((count_ngram_feature * self.sum_ngrams) / (count_ngram * count_feature))
+            return 0
+
+        if self.ngrams_counter[ngram] is not 0:
+            count_ngram = self.ngrams_counter[ngram]
+        else:
+            return 0
+
+        if self.feature_counters[feature_name][feature] is not 0:
+            count_feature = self.feature_counters[feature_name][feature]
+        else:
+            return 0
+
+        score = np.log((count_ngram_feature * self.sum_ngrams) / (count_ngram * count_feature))
 
         return score
 
