@@ -1,5 +1,5 @@
 # convert all graph features to a dictionary
-def features2dict(features_list):
+def features2dictset(features_list):
     dict = {}
     for features in features_list:
         for feature_name, feature in features.items():
@@ -8,6 +8,14 @@ def features2dict(features_list):
             dict[feature_name].add(feature)
 
     return dict
+
+
+def flattenSet(dict):
+    array = []
+    for item in dict:
+       array.extend(dict[item])
+
+    return array
 
 
 def has_suffix(word):

@@ -8,14 +8,13 @@ import timeit
 
 
 def read_data(file):
-
     with open(file) as f:
         raw_data = f.readlines()
 
     return raw_data
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--labeled_file", default='./data/labeled_train')
@@ -27,7 +26,7 @@ if __name__=='__main__':
     # unlabel_data = read_data(args.unlabeled_file)
 
     label_data = preprocess_label(label_data)
-    test_data = label_data[0:400]
+    test_data = label_data[0:1600]
     # unlabel_data = preprocess_unlabel(unlabel_data)
     # all_data = label_data + unlabel_data
 
@@ -47,21 +46,21 @@ if __name__=='__main__':
         features_list.extend(features)
 
     # compute pmi_vectors
-    pmi = PMI(ngrams_list, features_list)
-    features_dict = features2dict(features_list)
+    features_dictset = features2dictset(features_list)
+    features_flatten_set = flattenSet(features_dictset)
+    pmi = PMI(ngrams_list, features_list, features_flatten_set)
 
     start = timeit.default_timer()
-    pmi_vectors = np.array([pmi.pmi_vector(ngram, features_dict) for ngram in ngrams_list])
+    pmi_vectors = np.array([pmi.pmi_vector(ngram, feature) for ngram, feature in zip(ngrams_list, features_list)])
     end = timeit.default_timer()
-
     print(end-start)
-    '''
-    # compute CRF
-    crf = sklearn_crfsuite.CRF(
-        algorithm='l2sgd',
-        c2=0.01,
-        max_iterations=100,
-        all_possible_transitions=True
-    )
-    crf.fit(label_feature, label_target)
-    '''
+
+    # # compute CRF
+    # crf = sklearn_crfsuite.CRF(
+    #     algorithm='l2sgd',
+    #     c2=0.01,
+    #     max_iterations=100,
+    #     all_possible_transitions=True
+    # )
+    # crf.fit(label_feature, label_target)
+    #

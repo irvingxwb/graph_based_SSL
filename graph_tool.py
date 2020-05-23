@@ -1,5 +1,4 @@
 from collections import Counter
-from sklearn.metrics import pairwise_distances
 import numpy as np
 
 
@@ -7,42 +6,34 @@ class Graph:
     # k for k_nearest
     def __init__(self, ngrams, pmi_vectors, unlabeled, k):
         self.ngrams = ngrams
-        self.sim_matrix = pairwise_distances(pmi_vectors, metric='cosine')
         self.unlabeled = unlabeled
         self.graph_dic = {}
 
-        for i in range(self.sim_matrix.shape[0]):
-            arr = np.argsort(self.sim_matrix[0], axis=1)
-            self.graph_dic[ngrams[i]] = [arr[-idx-1] for idx in range(k)]
-
 
 class PMI:
-    def __init__(self, ngrams, features_list):
-        self.ngrams_counter = Counter(ngrams)
+    def __init__(self, ngrams, features_list, features_flatten_list):
         self.sum_ngrams = len(ngrams)
+        self.features_flatten_list = features_flatten_list
+        self.vector_len = len(features_flatten_list)
 
-        feature_dict = {}
-        ngrams_feature_dict = {}
+        keys = features_list[0].keys()
+        feature_agg = dict.fromkeys(keys, [])
+        ngram_feature_agg = dict.fromkeys(keys, [])
 
-        for ngram, features in zip(ngrams, features_list):
-            for feature_name, feature in features.items():
-                if feature_name not in feature_dict:
-                    feature_dict[feature_name] = []
-                if feature_name not in ngrams_feature_dict:
-                    ngrams_feature_dict[feature_name] = []
+        # gather all features by its name
+        for ngram, feature in zip(ngrams, features_list):
+            for feature_name, feature_item in feature.items():
+                feature_agg[feature_name].append(feature_item)
+                ngram_feature_agg[feature_name].append((ngram, feature_item))
 
-                # dict for all context features
-                feature_dict[feature_name].append(feature)
-                # dict for all context features with (ngram, feature) pair as elements
-                ngrams_feature_dict[feature_name].append((ngram, feature))
-
+        self.ngrams_counter = Counter(ngrams)
         self.feature_counters = {}
         self.ngrams_feature_counters = {}
 
-        for feature_name, feature in feature_dict.items():
+        for feature_name, feature in feature_agg.items():
             self.feature_counters[feature_name] = Counter(feature)
 
-        for feature_name, ngram_feature in ngrams_feature_dict.items():
+        for feature_name, ngram_feature in ngram_feature_agg.items():
             self.ngrams_feature_counters[feature_name] = Counter(ngram_feature)
 
     def pmi(self, ngram, feature, feature_name):
@@ -65,7 +56,15 @@ class PMI:
 
         return score
 
-    def pmi_vector(self, ngram, features_dict):
-        return np.array(
-            [self.pmi(ngram, feature, feature_name) for feature_name, feature_set in features_dict.items() for feature
-             in feature_set])
+    def pmi_vector(self, ngram, feature):
+        ret_arr = np.zeros(self.vector_len)
+
+        for feature_name, item in feature.items():
+            feature_idx = self.features_flatten_list.index(item)
+            ret_arr[feature_idx] = self.pmi(ngram, item, feature_name)
+
+        return ret_arr
+        #
+        # return np.array(
+        #     [self.pmi(ngram, feature, feature_name) for feature_name, feature_set in features_dict.items() for feature
+        #      in feature_set])
