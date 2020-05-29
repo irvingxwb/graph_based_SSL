@@ -5,7 +5,12 @@ import argparse
 import sklearn_crfsuite
 from collections import Counter
 import timeit
+from sys import getsizeof
+import logging
+logging.basicConfig(level=logging.DEBUG, filename='./main.log', filemode='w')
 
+# define hyperparameter
+k_nearest = 5
 
 def read_data(file):
     with open(file) as f:
@@ -24,9 +29,10 @@ if __name__ == '__main__':
     # load dataset
     label_data = read_data(args.labeled_file)
     # unlabel_data = read_data(args.unlabeled_file)
+    unlabeledNum = 0
 
     label_data = preprocess_label(label_data)
-    test_data = label_data
+    test_data = label_data[0:6000]
     # unlabel_data = preprocess_unlabel(unlabel_data)
     # all_data = label_data + unlabel_data
 
@@ -46,14 +52,28 @@ if __name__ == '__main__':
         features_list.extend(features)
 
     # compute pmi_vectors
-    features_dictset = features2dictset(features_list)
-    features_flatten_set = flattenSet(features_dictset)
-    pmi = PMI(ngrams_list, features_list, features_flatten_set)
+    start = timeit.default_timer()
+    pmi = PMI(ngrams_list, features_list)
+    end = timeit.default_timer()
+    logging.debug("Construct PMI: "+ str(end - start))
+
+    # start = timeit.default_timer()
+    # pmi_vectors_1 = pmi.pmi_vectors_hash()
+    # end = timeit.default_timer()
+    # print("vectors1: ", str(end - start), getsizeof(pmi_vectors_1))
 
     start = timeit.default_timer()
-    pmi_vectors = np.array([pmi.pmi_vector(ngram, feature) for ngram, feature in zip(ngrams_list, features_list)])
+    pmi_vectors_sparse = pmi.pmi_vectors_sparse()
     end = timeit.default_timer()
-    print(end-start)
+    logging.debug("vectors sparse: "+ str(end - start)+" "+str(getsizeof(pmi_vectors_sparse)))
+
+    #
+    start = timeit.default_timer()
+    graph = Graph(list(pmi.ngrams_feature_map.keys()), pmi_vectors_sparse, unlabeledNum, k_nearest)
+    graph.printGraph(20)
+    end = timeit.default_timer()
+    logging.debug("Construct Graph: "+ str(end - start))
+
 
     # # compute CRF
     # crf = sklearn_crfsuite.CRF(

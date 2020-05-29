@@ -1,5 +1,9 @@
+import math
+from scipy import sparse
+from operator import itemgetter
+
 # convert all graph features to a dictionary
-def features2dictset(features_list):
+def features2dict(features_list):
     dict = {}
     for features in features_list:
         for feature_name, feature in features.items():
@@ -8,14 +12,6 @@ def features2dictset(features_list):
             dict[feature_name].add(feature)
 
     return dict
-
-
-def flattenSet(dict):
-    array = []
-    for item in dict:
-       array.extend(dict[item])
-
-    return array
 
 
 def has_suffix(word):
@@ -115,3 +111,50 @@ def sent2features(sent):
 
 def sent2labels(sent):
     return [postag for token, postag, chunk, label in sent]
+
+
+def string2number(str):
+    ret = 0
+    para = 1
+
+    if str is True:
+        return 0
+    elif str is False:
+        return -1
+    else:
+        for c in str:
+            ret += para * ord(c)
+            para += 1
+
+        return ret
+
+
+# vector form : (score, identity)
+def pairwise_distance(v1, v2):
+    sum0 = 0
+    sum1 = 0
+    sum2 = 0
+    idx1 = 0
+    idx2 = 0
+
+    for num in v1:
+        sum1 += num[0]**2
+
+    for num in v2:
+        sum2 += num[0]**2
+
+    for ele1 in v1:
+        for ele2 in v2:
+            if ele1[1] == ele2[1]:
+                sum0 += ele1[0] * ele2[0]
+
+    sim = sum0 / (math.sqrt(sum1)*math.sqrt(sum2))
+    dist = 1 - sim
+
+    return dist
+
+
+def sortVector(v):
+    return sorted(v, key=lambda x: x[1])
+
+

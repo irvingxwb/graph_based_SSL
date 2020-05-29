@@ -1,7 +1,15 @@
 import tensorflow as tf
+from helper import *
+import logging
+from scipy.sparse import csr_matrix
+import numpy as np
+from sys import getsizeof
 
-a = [1,2,3,4,5,6]
-b = [6,5,4,3,2,1]
+size = 10000
 
-for i, j in zip(a, b):
-    print(i, j)
+a = np.zeros([size, size])
+b = csr_matrix((size, size))
+b[0, 0:10] = 1
+
+c = [1,5,7,3,8,9,2]
+print(sorted(c)[-3:])
