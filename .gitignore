@@ -1,3 +1,6 @@
 graph_tool.pyc
 helper.pyc
 preprocess.pyc
+main.log
+graph.log
+__pycache__
