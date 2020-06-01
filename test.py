@@ -7,9 +7,18 @@ from sys import getsizeof
 
 size = 10000
 
-a = np.zeros([size, size])
-b = csr_matrix((size, size))
-b[0, 0:10] = 1
+dict1 = {}
+dict1['a'] = 10
+dict1['b'] = 20
+dict1['c'] = 40
+dict1['d'] = 30
+dict1['e'] = 50
 
-c = [1,5,7,3,8,9,2]
-print(sorted(c)[-3:])
+dict2 = {}
+dict2['a'] = 10
+dict2['b'] = 20
+dict2['c'] = 40
+dict2['d'] = 30
+dict2['e'] = 50
+
+print(sum_dict(dict1))

@@ -3,14 +3,15 @@ from preprocess import preprocess_label, preprocess_unlabel
 from graph_tool import *
 import argparse
 import sklearn_crfsuite
-from collections import Counter
 import timeit
 from sys import getsizeof
 import logging
-logging.basicConfig(level=logging.DEBUG, filename='./main.log', filemode='w')
+logging.basicConfig(level=logging.DEBUG, filename='./main.log', filemode='w', format='%(asctime)s:%(levelname)s:%(name)s:%(message)s')
 
+logger = logging.getLogger('Main')
 # define hyperparameter
-k_nearest = 5
+k_nearest = 3
+
 
 def read_data(file):
     with open(file) as f:
@@ -32,7 +33,8 @@ if __name__ == '__main__':
     unlabeledNum = 0
 
     label_data = preprocess_label(label_data)
-    test_data = label_data[0:6000]
+    test_data = label_data[0:10000]
+    logger.debug("length of label_data: "+ str(len(label_data)))
     # unlabel_data = preprocess_unlabel(unlabel_data)
     # all_data = label_data + unlabel_data
 
@@ -51,36 +53,41 @@ if __name__ == '__main__':
         features = sent2graphfeatures(sent)
         features_list.extend(features)
 
-    # compute pmi_vectors
     start = timeit.default_timer()
     pmi = PMI(ngrams_list, features_list)
     end = timeit.default_timer()
-    logging.debug("Construct PMI: "+ str(end - start))
+    logger.debug("Construct PMI: "+ str(end - start))
 
     # start = timeit.default_timer()
-    # pmi_vectors_1 = pmi.pmi_vectors_hash()
+    # pmi_vectors_sparse = pmi.pmi_vectors_sparse()
     # end = timeit.default_timer()
-    # print("vectors1: ", str(end - start), getsizeof(pmi_vectors_1))
+    # logging.debug("vectors sparse: "+ str(end - start)+" "+str(getsizeof(pmi_vectors_sparse)))
 
     start = timeit.default_timer()
-    pmi_vectors_sparse = pmi.pmi_vectors_sparse()
+    pmi_vectors_improve = pmi.pmi_vectors_improve()
     end = timeit.default_timer()
-    logging.debug("vectors sparse: "+ str(end - start)+" "+str(getsizeof(pmi_vectors_sparse)))
+    logger.debug("vectors improve: "+ str(end - start))
 
-    #
+    print(getsizeof(pmi_vectors_improve))
+    print(getsizeof(pmi.ngrams_feature_map))
+
+    # construct graph
     start = timeit.default_timer()
-    graph = Graph(list(pmi.ngrams_feature_map.keys()), pmi_vectors_sparse, unlabeledNum, k_nearest)
-    graph.printGraph(20)
+    graph = Graph(list(pmi.ngrams_feature_map.keys()), pmi_vectors_improve, unlabeledNum, k_nearest)
+    graph.printGraph(100)
     end = timeit.default_timer()
-    logging.debug("Construct Graph: "+ str(end - start))
+    logger.debug("Construct Graph: "+ str(end - start))
+
+    # compute CRF
+    crf = sklearn_crfsuite.CRF(
+        algorithm='l2sgd',
+        c2=0.01,
+        max_iterations=100,
+        all_possible_transitions=True
+    )
+    crf.fit(label_feature, label_target)
+    marginal_prob = crf.predict_marginals(label_feature)
+
+    marginal_prob_agg = agg_marginal(marginal_prob, ngrams_list, pmi.ngrams_counter)
 
 
-    # # compute CRF
-    # crf = sklearn_crfsuite.CRF(
-    #     algorithm='l2sgd',
-    #     c2=0.01,
-    #     max_iterations=100,
-    #     all_possible_transitions=True
-    # )
-    # crf.fit(label_feature, label_target)
-    #

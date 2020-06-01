@@ -1,6 +1,11 @@
 import math
+from collections import Counter
 from scipy import sparse
 from operator import itemgetter
+import logging
+
+logger = logging.getLogger('Helper')
+
 
 # convert all graph features to a dictionary
 def features2dict(features_list):
@@ -156,5 +161,50 @@ def pairwise_distance(v1, v2):
 
 def sortVector(v):
     return sorted(v, key=lambda x: x[1])
+
+
+def merge_dict(dict1, dict2):
+
+    for key in dict1.keys():
+        dict1[key] = dict1[key] + dict2[key]
+
+    return dict1
+
+
+def operate_dict(dict, operator, para):
+    if operator == 'div':
+        for key in dict:
+            dict[key] = dict[key] / para
+
+    return dict
+
+
+def sum_dict(dict):
+    dict_sum = 0
+    for key in dict:
+        dict_sum += dict[key]
+
+    return dict_sum
+
+
+def agg_marginal(marginal_prob, ngram_list, ngram_counter):
+    ngram_prob_map = {}
+    ngram_index = 0
+
+    for sent_prob in marginal_prob:
+        for i in range(len(sent_prob)-2):
+            ngram = ngram_list[ngram_index]
+            if ngram not in ngram_prob_map:
+                ngram_prob_map[ngram] = sent_prob[i+1]
+            else:
+                ngram_prob_map[ngram] = merge_dict(ngram_prob_map[ngram], sent_prob[i+1])
+
+    for ngram, prob in ngram_prob_map.items():
+        number = ngram_counter[ngram]
+        if number != 1:
+            print(number)
+            print(sum_dict(ngram_prob_map[ngram]))
+
+
 
 

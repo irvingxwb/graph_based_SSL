@@ -1,10 +1,11 @@
 from collections import Counter
 from helper import string2number, sortVector
 import numpy as np
-from scipy.sparse import lil_matrix
+from scipy.sparse import lil_matrix, csr_matrix
 from sklearn.metrics import pairwise_distances
 import logging
 
+logger = logging.getLogger("Graph")
 
 class Graph:
     # k for k_nearest
@@ -18,11 +19,10 @@ class Graph:
 
         ngram_idx = 0
         for row in distance_matrix:
-            print(row)
             self.graph_map[ngrams[ngram_idx]] = map(int, sorted(row)[1:k+1])
             ngram_idx += 1
 
-        logging.debug("[Graph Debug]: graph size " + str(len(self.graph_map)))
+        logger.debug(f'graph size {str(len(self.graph_map))}')
 
     # test function for debug graph
     def printGraph(self, print_num):
@@ -33,8 +33,7 @@ class Graph:
             for index in near:
                 near_set.append(self.ngrams[index])
 
-            logging.debug("[Graph Debug]" + '*'.join(ele for ele in near))
-            logging.debug("[Graph Debug]" + ngram + " nearby: " + '**'.join(ele for ele in near_set))
+            logger.debug(f'Graph: {ngram}\'s nearby: {" ".join(item for item in near_set)}')
             count += 1
             if count > print_num:
                 break
@@ -42,7 +41,8 @@ class Graph:
 
 class PMI:
     def __init__(self, ngrams_list, features_list):
-        self.features = set()
+        # self.features = set()
+        self.feature_dict = {}
 
         keys = features_list[0].keys()
         feature_agg = dict.fromkeys(keys, [])
@@ -57,31 +57,36 @@ class PMI:
         self.ngrams_feature_map = {}
 
         # gather all features by its name
-        for ngram, feature in zip(ngrams_list, features_list):
+        feature_count = 0
+        for ngram, features in zip(ngrams_list, features_list):
             if ngram not in self.ngrams_feature_map:
-                self.ngrams_feature_map[ngram] = [feature]
+                self.ngrams_feature_map[ngram] = [features]
             else:
-                self.ngrams_feature_map[ngram].append(feature)
+                self.ngrams_feature_map[ngram].append(features)
 
-            for feature_name, feature_item in feature.items():
-                feature_agg[feature_name].append(feature_item)
-                ngrams_feature_agg[feature_name].append((ngram, feature_item))
+            for feature_name, feature in features.items():
+                feature_agg[feature_name].append(feature)
+                ngrams_feature_agg[feature_name].append((ngram, feature))
+
+                if feature not in self.feature_dict:
+                    self.feature_dict[feature] = feature_count
+                    feature_count += 1
+
+        # logging.debug(str(self.feature_dict))
 
         for feature_name, feature in feature_agg.items():
-            self.features.update(feature)
+            # self.features.update(feature)
             self.feature_counters[feature_name] = Counter(feature)
 
-        self.features = list(self.features)
-        self.sum_features = len(self.features)
+        # self.features = list(self.features)
+        self.sum_features = len(self.feature_dict)
         self.sum_ngrams = len(self.ngrams_feature_map)
 
         for feature_name, ngram_feature in ngrams_feature_agg.items():
             self.ngrams_feature_counters[feature_name] = Counter(ngram_feature)
 
-        # for ngram in self.ngrams_feature_map:
-        #     assert len(self.ngrams_feature_map[ngram])==self.ngrams_counter[ngram]
-
-        logging.debug("complete pmi with: "+str(self.sum_ngrams)+" "+str(self.sum_features))
+        logger.debug("PMI: ngram_map size and feature_map size: " + str(len(self.ngrams_feature_map)) +" "+ str(len(self.feature_dict)))
+        logger.debug("PMI: complete pmi with: "+str(self.sum_ngrams)+" "+str(self.sum_features))
 
     def pmi_score(self, ngram, feature, feature_name):
         if self.ngrams_feature_counters[feature_name][(ngram, feature)] is not 0:
@@ -103,27 +108,27 @@ class PMI:
 
         return score
 
-    def pmi_vectors_hash(self):
-        ret_vecotrs = []
-        for ngram, features in self.ngrams_feature_map.items():
-            ngram_vector = []
-            for feature in features:
-                for name, item in feature.items():
-                    ngram_vector.append([self.pmi_score(ngram, item, name), string2number(item)])
+    # deprecated
+    # def pmi_vectors_sparse(self):
+    #     ngram_idx = 0
+    #     ret_vectors = lil_matrix((self.sum_ngrams, self.sum_features))
+    #     for ngram, features in self.ngrams_feature_map.items():
+    #         for feature in features:
+    #             for name, item in feature.items():
+    #                 item_idx = self.features.index(item)
+    #                 ret_vectors[ngram_idx, item_idx] = self.pmi_score(ngram, item, name)
+    #
+    #         ngram_idx += 1
+    #
+    #     return ret_vectors
 
-            # sort the vector for simplify similarity computation
-            ngram_vector = sortVector(ngram_vector)
-            ret_vecotrs.append(ngram_vector)
-
-        return ret_vecotrs
-
-    def pmi_vectors_sparse(self):
+    def pmi_vectors_improve(self):
         ngram_idx = 0
         ret_vectors = lil_matrix((self.sum_ngrams, self.sum_features))
         for ngram, features in self.ngrams_feature_map.items():
             for feature in features:
                 for name, item in feature.items():
-                    item_idx = self.features.index(item)
+                    item_idx = self.feature_dict[item]
                     ret_vectors[ngram_idx, item_idx] = self.pmi_score(ngram, item, name)
 
             ngram_idx += 1
