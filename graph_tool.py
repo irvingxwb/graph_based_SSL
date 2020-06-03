@@ -1,8 +1,6 @@
 from collections import Counter
-from helper import string2number, sortVector
 import numpy as np
 from scipy.sparse import lil_matrix, csr_matrix
-from scipy.spatial.distance import cosine
 from sklearn.metrics import pairwise_distances
 import timeit
 import logging

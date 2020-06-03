@@ -1,6 +1,5 @@
 import math
 from collections import Counter
-from scipy import sparse
 from operator import itemgetter
 import logging
 
