@@ -21,4 +21,8 @@ dict2['c'] = 40
 dict2['d'] = 30
 dict2['e'] = 50
 
-print(sum_dict(dict1))
+arr = [1,5,7,3,9,4]
+arr = np.array(arr)
+index = (-arr).argsort()[0:3]
+
+print(index)

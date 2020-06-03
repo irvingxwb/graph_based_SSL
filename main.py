@@ -33,7 +33,7 @@ if __name__ == '__main__':
     unlabeledNum = 0
 
     label_data = preprocess_label(label_data)
-    test_data = label_data[0:10000]
+    test_data = label_data
     logger.debug("length of label_data: "+ str(len(label_data)))
     # unlabel_data = preprocess_unlabel(unlabel_data)
     # all_data = label_data + unlabel_data
@@ -68,13 +68,9 @@ if __name__ == '__main__':
     end = timeit.default_timer()
     logger.debug("vectors improve: "+ str(end - start))
 
-    print(getsizeof(pmi_vectors_improve))
-    print(getsizeof(pmi.ngrams_feature_map))
-
     # construct graph
     start = timeit.default_timer()
     graph = Graph(list(pmi.ngrams_feature_map.keys()), pmi_vectors_improve, unlabeledNum, k_nearest)
-    graph.printGraph(100)
     end = timeit.default_timer()
     logger.debug("Construct Graph: "+ str(end - start))
 
@@ -89,5 +85,7 @@ if __name__ == '__main__':
     marginal_prob = crf.predict_marginals(label_feature)
 
     marginal_prob_agg = agg_marginal(marginal_prob, ngrams_list, pmi.ngrams_counter)
+
+    print("program finished")
 
 

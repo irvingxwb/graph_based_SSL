@@ -2,10 +2,12 @@ from collections import Counter
 from helper import string2number, sortVector
 import numpy as np
 from scipy.sparse import lil_matrix, csr_matrix
+from scipy.spatial.distance import cosine
 from sklearn.metrics import pairwise_distances
+import timeit
 import logging
-
 logger = logging.getLogger("Graph")
+
 
 class Graph:
     # k for k_nearest
@@ -13,16 +15,30 @@ class Graph:
         self.ngrams = ngrams
         self.unlabeled = unlabeled
         self.graph_map = {}
+        self.length = len(ngrams)
         # compute k nearest map
+        logger.debug(f'check length {str(len(self.ngrams))}  {str(pmi_vectors.shape[0])}')
 
-        distance_matrix = pairwise_distances(pmi_vectors, metric="cosine")
+        start = timeit.default_timer()
+        self.compute_graph(pmi_vectors, k)
+        end = timeit.default_timer()
 
-        ngram_idx = 0
-        for row in distance_matrix:
-            self.graph_map[ngrams[ngram_idx]] = map(int, sorted(row)[1:k+1])
-            ngram_idx += 1
-
+        logger.debug(f'Compute graph complete: {str(end-start)}')
         logger.debug(f'graph size {str(len(self.graph_map))}')
+
+    def compute_graph(self, pmi_vectors, k):
+        pmi_vectors = pmi_vectors.tocsr()
+
+        for i in range(self.length):
+            ngram = self.ngrams[i]
+            v = pmi_vectors.getrow(i)
+            dist_list = []
+
+            # compute distance
+            dist_vec = pairwise_distances(v, pmi_vectors, metric='cosine')[0]
+            idx = dist_vec.argsort()[:k].tolist()
+            self.graph_map[ngram] = [self.ngrams[i] for i in idx]
+            logger.debug(f'{ngram} : {" ".join(self.graph_map[ngram])}')
 
     # test function for debug graph
     def printGraph(self, print_num):
@@ -89,20 +105,10 @@ class PMI:
         logger.debug("PMI: complete pmi with: "+str(self.sum_ngrams)+" "+str(self.sum_features))
 
     def pmi_score(self, ngram, feature, feature_name):
-        if self.ngrams_feature_counters[feature_name][(ngram, feature)] is not 0:
-            count_ngram_feature = self.ngrams_feature_counters[feature_name][(ngram, feature)]
-        else:
-            return 0
 
-        if self.ngrams_counter[ngram] is not 0:
-            count_ngram = self.ngrams_counter[ngram]
-        else:
-            return 0
-
-        if self.feature_counters[feature_name][feature] is not 0:
-            count_feature = self.feature_counters[feature_name][feature]
-        else:
-            return 0
+        count_ngram_feature = self.ngrams_feature_counters[feature_name][(ngram, feature)]
+        count_ngram = self.ngrams_counter[ngram]
+        count_feature = self.feature_counters[feature_name][feature]
 
         score = np.log((count_ngram_feature * self.sum_ngrams) / (count_ngram * count_feature))
 
