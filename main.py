@@ -28,14 +28,13 @@ if __name__ == '__main__':
     parser.add_argument("--labeled_file", default='./data/labeled_train')
     parser.add_argument("--unlabeled_file", default='./data/unlabeled_train')
     args = parser.parse_args()
-
     # load dataset
     label_data = read_data(args.labeled_file)
     # unlabel_data = read_data(args.unlabeled_file)
     unlabeledNum = 0
 
     label_data = preprocess_label(label_data)
-    test_data = label_data[0:2000]
+    test_data = label_data[0:8000]
     logger.debug("length of label_data: "+ str(len(label_data)))
     # unlabel_data = preprocess_unlabel(unlabel_data)
     # all_data = label_data + unlabel_data
