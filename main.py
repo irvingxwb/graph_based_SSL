@@ -35,7 +35,7 @@ if __name__ == '__main__':
     unlabeledNum = 0
 
     label_data = preprocess_label(label_data)
-    test_data = label_data[0:8000]
+    test_data = label_data[0:2000]
     logger.debug("length of label_data: "+ str(len(label_data)))
     # unlabel_data = preprocess_unlabel(unlabel_data)
     # all_data = label_data + unlabel_data

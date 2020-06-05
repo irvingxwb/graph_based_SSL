@@ -162,26 +162,18 @@ def sortVector(v):
     return sorted(v, key=lambda x: x[1])
 
 
-def merge_dict(dict1, dict2):
-
-    for key in dict1.keys():
-        dict1[key] = dict1[key] + dict2[key]
-
-    return dict1
-
-
 def operate_dict(dict1, dict2=None, operator='div', para='1'):
     if operator == 'div':
-        for key in dict1:
+        for key in dict1.keys():
             dict1[key] = dict1[key] / para
         return dict1
     elif operator == 'add':
-        for key in dict1:
+        for key in dict1.keys():
             dict1[key] = dict1[key] + dict2[key]
         return dict1
     elif operator == 'sum':
         total = 0
-        for key in dict1:
+        for key in dict1.keys():
             total += dict1[key]
         return total
 
