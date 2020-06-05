@@ -186,23 +186,6 @@ def sum_dict(dict):
     return dict_sum
 
 
-def agg_marginal(marginal_prob, ngram_list, ngram_counter):
-    ngram_prob_map = {}
-    ngram_index = 0
-
-    for sent_prob in marginal_prob:
-        for i in range(len(sent_prob)-2):
-            ngram = ngram_list[ngram_index]
-            if ngram not in ngram_prob_map:
-                ngram_prob_map[ngram] = sent_prob[i+1]
-            else:
-                ngram_prob_map[ngram] = merge_dict(ngram_prob_map[ngram], sent_prob[i+1])
-
-    for ngram, prob in ngram_prob_map.items():
-        number = ngram_counter[ngram]
-        if number != 1:
-            print(number)
-            print(sum_dict(ngram_prob_map[ngram]))
 
 
 

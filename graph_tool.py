@@ -1,9 +1,12 @@
 from collections import Counter
+from helper import merge_dict, operate_dict
 import numpy as np
 from scipy.sparse import lil_matrix, csr_matrix
 from sklearn.metrics import pairwise_distances
 import timeit
 import logging
+import math
+
 logger = logging.getLogger("Graph")
 
 
@@ -12,7 +15,8 @@ class Graph:
     def __init__(self, ngrams, pmi_vectors, unlabeled, k):
         self.ngrams = ngrams
         self.unlabeled = unlabeled
-        self.graph_map = {}
+        self.graph_map = dict.fromkeys(ngrams)
+        self.ngram_prob_map = dict.fromkeys(ngrams)
         self.length = len(ngrams)
         # compute k nearest map
         logger.debug(f'check length {str(len(self.ngrams))}  {str(pmi_vectors.shape[0])}')
@@ -21,22 +25,56 @@ class Graph:
         self.compute_graph(pmi_vectors, k)
         end = timeit.default_timer()
 
-        logger.debug(f'Compute graph complete: {str(end-start)}')
+        logger.debug(f'Compute graph complete: {str(end - start)}')
         logger.debug(f'graph size {str(len(self.graph_map))}')
 
     def compute_graph(self, pmi_vectors, k):
         pmi_vectors = pmi_vectors.tocsr()
+        matrix_length = 1000
+
+        start = timeit.default_timer()
+        dist = []
+        for i in range(math.ceil(self.length / matrix_length)):
+            print("%d  %d" % (i * matrix_length, self.length))
+            if (i + 1) * matrix_length < self.length:
+                v = pmi_vectors[i * matrix_length:(i + 1) * matrix_length, :]
+            else:
+                v = pmi_vectors[i * matrix_length:, :]
+            # compute distance
+            dist_vec = pairwise_distances(v, pmi_vectors, metric='cosine')
+            dist.extend(dist_vec.argsort()[:, 1:k + 1])
 
         for i in range(self.length):
-            ngram = self.ngrams[i]
-            v = pmi_vectors.getrow(i)
-            dist_list = []
+            self.graph_map[self.ngrams[i]] = [self.ngrams[j] for j in dist[i]]
 
-            # compute distance
-            dist_vec = pairwise_distances(v, pmi_vectors, metric='cosine')[0]
-            idx = dist_vec.argsort()[:k].tolist()
-            self.graph_map[ngram] = [self.ngrams[i] for i in idx]
-            logger.debug(f'{ngram} : {" ".join(self.graph_map[ngram])}')
+        end = timeit.default_timer()
+        print("consumed time: %s" % str(end - start))
+
+    # raw ngram_list that contains duplicate itms
+    def agg_marginal_prob(self, prob, ngram_list):
+        ngram_index = 0
+        print(len(ngram_list))
+        print(len(self.ngrams))
+        count = 0
+        for sent_prob in prob:
+            count += len(sent_prob) - 2
+            # for i in range(len(sent_prob) - 2):
+                # if ngram not in self.ngram_prob_map:
+                #     ngram_prob_map[ngram] = sent_prob[i + 1]
+                # else:
+                #     ngram_prob_map[ngram] = merge_dict(ngram_prob_map[ngram], sent_prob[i + 1])
+
+        # for ngram, prob in ngram_prob_map.items():
+        #     number = ngram_counter[ngram]
+        #     if number != 1:
+        #         print(number)
+        #         print(sum_dict(ngram_prob_map[ngram]))
+        #
+        # return
+        print(count)
+
+    def propogate_graph(self):
+        return
 
     # test function for debug graph
     def printGraph(self, print_num):
@@ -47,7 +85,7 @@ class Graph:
             for index in near:
                 near_set.append(self.ngrams[index])
 
-            logger.debug(f'Graph: {ngram}\'s nearby: {" ".join(item for item in near_set)}')
+            logger.debug(f'Graph: {ngram}\'s nearby: {"||".join(item for item in near_set)}')
             count += 1
             if count > print_num:
                 break
@@ -99,8 +137,9 @@ class PMI:
         for feature_name, ngram_feature in ngrams_feature_agg.items():
             self.ngrams_feature_counters[feature_name] = Counter(ngram_feature)
 
-        logger.debug("PMI: ngram_map size and feature_map size: " + str(len(self.ngrams_feature_map)) +" "+ str(len(self.feature_dict)))
-        logger.debug("PMI: complete pmi with: "+str(self.sum_ngrams)+" "+str(self.sum_features))
+        logger.debug("PMI: ngram_map size and feature_map size: " + str(len(self.ngrams_feature_map)) + " " + str(
+            len(self.feature_dict)))
+        logger.debug("PMI: complete pmi with: " + str(self.sum_ngrams) + " " + str(self.sum_features))
 
     def pmi_score(self, ngram, feature, feature_name):
 
@@ -138,5 +177,3 @@ class PMI:
             ngram_idx += 1
 
         return ret_vectors
-
-

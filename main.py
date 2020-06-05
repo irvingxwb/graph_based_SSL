@@ -4,14 +4,16 @@ from graph_tool import *
 import argparse
 import sklearn_crfsuite
 import timeit
-from sys import getsizeof
+from sys import getsizeof, stdout
 import logging
-logging.basicConfig(level=logging.DEBUG, filename='./main.log', filemode='w', format='%(asctime)s:%(levelname)s:%(name)s:%(message)s')
+
+# logging.basicConfig(level=logging.DEBUG, filename='./main.log', filemode='w', format='%(asctime)s:%(levelname)s:%(
+# name)s:%(message)s')
+logging.basicConfig(level=logging.DEBUG, stream=stdout, format='%(asctime)s:%(levelname)s:%(name)s:%(message)s')
 
 logger = logging.getLogger('Main')
 # define hyperparameter
 k_nearest = 3
-
 
 def read_data(file):
     with open(file) as f:
@@ -33,7 +35,7 @@ if __name__ == '__main__':
     unlabeledNum = 0
 
     label_data = preprocess_label(label_data)
-    test_data = label_data
+    test_data = label_data[0:8000]
     logger.debug("length of label_data: "+ str(len(label_data)))
     # unlabel_data = preprocess_unlabel(unlabel_data)
     # all_data = label_data + unlabel_data
@@ -58,11 +60,6 @@ if __name__ == '__main__':
     end = timeit.default_timer()
     logger.debug("Construct PMI: "+ str(end - start))
 
-    # start = timeit.default_timer()
-    # pmi_vectors_sparse = pmi.pmi_vectors_sparse()
-    # end = timeit.default_timer()
-    # logging.debug("vectors sparse: "+ str(end - start)+" "+str(getsizeof(pmi_vectors_sparse)))
-
     start = timeit.default_timer()
     pmi_vectors_improve = pmi.pmi_vectors_improve()
     end = timeit.default_timer()
@@ -75,6 +72,7 @@ if __name__ == '__main__':
     logger.debug("Construct Graph: "+ str(end - start))
 
     # compute CRF
+    start = timeit.default_timer()
     crf = sklearn_crfsuite.CRF(
         algorithm='l2sgd',
         c2=0.01,
@@ -83,9 +81,14 @@ if __name__ == '__main__':
     )
     crf.fit(label_feature, label_target)
     marginal_prob = crf.predict_marginals(label_feature)
+    graph.agg_marginal_prob(marginal_prob, ngrams_list)
+    end = timeit.default_timer()
+    logger.debug("Compute marginal probabilities: " + str(end - start))
 
-    marginal_prob_agg = agg_marginal(marginal_prob, ngrams_list, pmi.ngrams_counter)
-
+    start = timeit.default_timer()
+    graph.propogate_graph()
+    end = timeit.default_timer()
+    logger.debug("propograte graph: " + str(end - start))
     print("program finished")
 
 
