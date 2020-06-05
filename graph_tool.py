@@ -16,7 +16,7 @@ class Graph:
         self.ngrams = ngrams
         self.unlabeled = unlabeled
         self.graph_map = dict.fromkeys(ngrams)
-        self.ngram_prob_map = dict.fromkeys(ngrams)
+        self.ngram_prob_map = {}
         self.length = len(ngrams)
         # compute k nearest map
         logger.debug(f'check length {str(len(self.ngrams))}  {str(pmi_vectors.shape[0])}')
@@ -66,8 +66,8 @@ class Graph:
         for ngram, prob in self.ngram_prob_map.items():
             number = ngram_counter[ngram]
             if number != 1:
-                print(number)
-                print(operate_dict(dict1=self.ngram_prob_map[ngram], operator='sum'))
+                print("ngram numbers " + str(number))
+                print("prob sum " + str(operate_dict(dict1=self.ngram_prob_map[ngram], operator='sum')))
 
         # return
 
