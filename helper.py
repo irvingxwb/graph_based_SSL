@@ -170,20 +170,23 @@ def merge_dict(dict1, dict2):
     return dict1
 
 
-def operate_dict(dict, operator, para):
+def operate_dict(dict1, dict2=None, operator='div', para='1'):
     if operator == 'div':
-        for key in dict:
-            dict[key] = dict[key] / para
+        for key in dict1:
+            dict1[key] = dict1[key] / para
+        return dict1
+    elif operator == 'add':
+        for key in dict1:
+            dict1[key] = dict1[key] + dict2[key]
+        return dict1
+    elif operator == 'sum':
+        total = 0
+        for key in dict1:
+            total += dict1[key]
+        return total
 
-    return dict
 
 
-def sum_dict(dict):
-    dict_sum = 0
-    for key in dict:
-        dict_sum += dict[key]
-
-    return dict_sum
 
 
 

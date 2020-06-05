@@ -25,4 +25,4 @@ arr = [1,5,7,3,9,4]
 arr = np.array(arr)
 index = (-arr).argsort()[0:3]
 
-print(index)
+print(operate_dict(dict1=dict1, operator='sum'))

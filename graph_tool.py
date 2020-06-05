@@ -1,5 +1,5 @@
 from collections import Counter
-from helper import merge_dict, operate_dict
+from helper import operate_dict
 import numpy as np
 from scipy.sparse import lil_matrix, csr_matrix
 from sklearn.metrics import pairwise_distances
@@ -53,25 +53,23 @@ class Graph:
     # raw ngram_list that contains duplicate itms
     def agg_marginal_prob(self, prob, ngram_list):
         ngram_index = 0
-        print(len(ngram_list))
-        print(len(self.ngrams))
-        count = 0
+        ngram_counter = Counter(ngram_list)
         for sent_prob in prob:
-            count += len(sent_prob) - 2
-            # for i in range(len(sent_prob) - 2):
-                # if ngram not in self.ngram_prob_map:
-                #     ngram_prob_map[ngram] = sent_prob[i + 1]
-                # else:
-                #     ngram_prob_map[ngram] = merge_dict(ngram_prob_map[ngram], sent_prob[i + 1])
+            for i in range(len(sent_prob) - 2):
+                ngram = ngram_list[ngram_index]
+                if ngram not in self.ngram_prob_map:
+                    self.ngram_prob_map[ngram] = sent_prob[i + 1]
+                else:
+                    self.ngram_prob_map[ngram] = operate_dict(dict1=self.ngram_prob_map[ngram], dict2=sent_prob[i + 1],
+                                                              operator='add')
 
-        # for ngram, prob in ngram_prob_map.items():
-        #     number = ngram_counter[ngram]
-        #     if number != 1:
-        #         print(number)
-        #         print(sum_dict(ngram_prob_map[ngram]))
-        #
+        for ngram, prob in self.ngram_prob_map.items():
+            number = ngram_counter[ngram]
+            if number != 1:
+                print(number)
+                print(operate_dict(dict1=self.ngram_prob_map[ngram], operator='sum'))
+
         # return
-        print(count)
 
     def propogate_graph(self):
         return
