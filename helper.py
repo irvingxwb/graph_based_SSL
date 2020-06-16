@@ -1,6 +1,3 @@
-import math
-from collections import Counter
-from operator import itemgetter
 import logging
 
 logger = logging.getLogger('Helper')
@@ -96,6 +93,7 @@ def word2features(sent, i):
     if i < len(sent) - 1:
         word1 = sent[i + 1][0]
         postag1 = sent[i + 1][1]
+
         features.update({
             '+1:word.lower()': word1.lower(),
             '+1:word.istitle()': word1.istitle(),
@@ -113,8 +111,12 @@ def sent2features(sent):
     return [word2features(sent, i) for i in range(len(sent))]
 
 
-def sent2labels(sent):
+def sent2targets(sent):
     return [postag for token, postag, chunk, label in sent]
+
+
+def sent2tokens(sent):
+    return [token for token, postag, chunk, label in sent]
 
 
 def string2number(str):
@@ -133,35 +135,6 @@ def string2number(str):
         return ret
 
 
-# vector form : (score, identity)
-def pairwise_distance(v1, v2):
-    sum0 = 0
-    sum1 = 0
-    sum2 = 0
-    idx1 = 0
-    idx2 = 0
-
-    for num in v1:
-        sum1 += num[0]**2
-
-    for num in v2:
-        sum2 += num[0]**2
-
-    for ele1 in v1:
-        for ele2 in v2:
-            if ele1[1] == ele2[1]:
-                sum0 += ele1[0] * ele2[0]
-
-    sim = sum0 / (math.sqrt(sum1)*math.sqrt(sum2))
-    dist = 1 - sim
-
-    return dist
-
-
-def sortVector(v):
-    return sorted(v, key=lambda x: x[1])
-
-
 def operate_dict(dict1, dict2=None, operator='div', para='1'):
     if operator == 'div':
         for key in dict1.keys():
@@ -176,12 +149,3 @@ def operate_dict(dict1, dict2=None, operator='div', para='1'):
         for key in dict1.keys():
             total += dict1[key]
         return total
-
-
-
-
-
-
-
-
-

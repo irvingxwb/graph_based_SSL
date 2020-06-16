@@ -22,7 +22,9 @@ dict2['d'] = 30
 dict2['e'] = 50
 
 arr = [1,5,7,3,9,4]
+arr2 = [2,3,4,1,2,3]
 arr = np.array(arr)
 index = (-arr).argsort()[0:3]
 
+for x,y in zip()
 print(operate_dict(dict1=dict1, operator='sum'))

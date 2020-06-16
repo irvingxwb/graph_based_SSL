@@ -11,7 +11,7 @@ def preprocess_label(data):
     sent = []
     for line in data:
         if line.split():
-            sent.append(tuple(line.split()))
+            sent.append(list(line.split()))
         else:
             if len(sent) >= 3:
                 sent_set.append(sent)
