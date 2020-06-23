@@ -175,13 +175,14 @@ class LinearChainCRF():
     label_array = None
     num_labels = None
 
-    params = np.zeros(len(feature_set))
+    params = None
     # For L-BFGS
     squared_sigma = 10.0
 
     def __init__(self, feature_set, training_data):
         self.feature_set = feature_set
         self.training_data = training_data
+        params = np.zeros(len(feature_set))
 
     def train(self, corpus_filename, model_filename):
         logger.debug('Start training CRF')
