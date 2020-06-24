@@ -63,6 +63,7 @@ if __name__ == '__main__':
     logger.debug("Construct FeatureSet")
 
     crf = LinearChainCRF(feature_set=featureSet, training_data=label_data)
+    crf.train()
 
     # pmi = PMI(ngrams_list, features_list)
     # logger.debug("Construct PMI")

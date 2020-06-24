@@ -182,24 +182,36 @@ class LinearChainCRF():
     def __init__(self, feature_set, training_data):
         self.feature_set = feature_set
         self.training_data = training_data
-        params = np.zeros(len(feature_set))
 
-    def train(self, corpus_filename, model_filename):
+    def train(self):
         logger.debug('Start training CRF')
 
         self.label_dic, self.label_array = self.feature_set.get_labels()
         self.num_labels = len(self.label_array)
         logger.debug("** Number of labels: %d" % (self.num_labels - 1))
-        logger.debug("** Number of features: %d" % len(self.feature_set))
+        logger.debug("** Number of features: %d" % len(self.feature_set.feature_dic))
 
         # Estimates parameters to maximize log-likelihood of the corpus.
         self._estimate_parameters()
 
         logger.debug('Training done')
 
+    def _get_training_feature_data(self):
+        return [[self.feature_set.get_feature_list(X, t) for t in range(len(X))]
+                for X, _ in self.training_data]
+
     def _estimate_parameters(self):
         training_feature_data = self._get_training_feature_data()
         logger.debug('* Estimate parameters start L-BGFS')
+
+        self.params, log_likelihood, information = \
+            fmin_l_bfgs_b(func=_log_likelihood, fprime=_gradient,
+                          x0=np.zeros(len(self.feature_set)),
+                          args=(self.feature_set, training_feature_data,
+                                self.feature_set.get_empirical_counts(),
+                                self.label_dic, self.squared_sigma),
+                          callback=_callback)
+        logger.debug('* Training has been finished')
 
         for X_features in training_feature_data:
             print(X_features)
@@ -210,14 +222,6 @@ class LinearChainCRF():
             logger.debug('* end computing')
             break
 
-        # self.params, log_likelihood, information = \
-        #     fmin_l_bfgs_b(func=_log_likelihood, fprime=_gradient,
-        #                   x0=np.zeros(len(self.feature_set)),
-        #                   args=(self.feature_set, training_feature_data,
-        #                         self.feature_set.get_empirical_counts(),
-        #                         self.label_dic, self.squared_sigma),
-        #                   callback=_callback)
-        logger.debug('* Training has been finished')
 
         # if information['warnflag'] != 0:
         #     print('* Warning (code: %d)' % information['warnflag'])
