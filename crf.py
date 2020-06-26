@@ -25,7 +25,6 @@ def _callback(params):
     pass
 
 
-<<<<<<< HEAD
 def _forward_backward(num_labels, time_length, potential_table):
     alpha = np.zeros((time_length, num_labels))
     scaling_dic = dict()
