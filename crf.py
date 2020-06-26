@@ -147,7 +147,10 @@ def _log_likelihood(params, *args):
     global GRADIENT
     GRADIENT = gradients
 
-    # global SUB_ITERATION_NUM
+    global SUB_ITERATION_NUM
+    SUB_ITERATION_NUM += 1
+    logger.debug('iteration finish number : %d' % SUB_ITERATION_NUM)
+
     # sub_iteration_str = '    '
     # if SUB_ITERATION_NUM > 0:
     #     sub_iteration_str = '(' + '{0:02d}'.format(SUB_ITERATION_NUM) + ')'

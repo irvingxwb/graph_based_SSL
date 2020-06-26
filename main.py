@@ -10,7 +10,7 @@ import timeit
 from sys import getsizeof, stdout
 import logging
 
-# logging.basicConfig(level=logging.DEBUG, filename='./main.log', filemode='w', format='%(asctime)s:%(levelname)s:%(
+# logging.basicConfig(level=logging.DEBUG, filename='./log/main.log', filemode='w', format='%(asctime)s:%(levelname)s:%(
 # name)s:%(message)s')
 logging.basicConfig(level=logging.DEBUG, stream=stdout, format='%(asctime)s:%(levelname)s:%(name)s:%(message)s')
 
@@ -23,7 +23,6 @@ def read_data(file):
         raw_data = f.readlines()
 
     return raw_data
-
 
 if __name__ == '__main__':
 
