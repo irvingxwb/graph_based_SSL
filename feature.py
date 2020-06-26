@@ -1,5 +1,6 @@
 from collections import Counter
 from helper import operate_dict, word2features
+from crf import processLabelData
 import numpy as np
 from scipy.sparse import lil_matrix, csr_matrix
 from sklearn.metrics import pairwise_distances
@@ -34,9 +35,10 @@ class FeatureSet():
     label_dic = {STARTING_LABEL: STARTING_LABEL_INDEX}
     label_array = [STARTING_LABEL]
 
-    def __init__(self, sent_set, labels_set):
+    def __init__(self, data_set):
         # X is ngrams vector and Y is its realated feature vector
-        for X, Y in zip(sent_set, labels_set):
+        label_X, label_Y = processLabelData(data_set)
+        for X, Y in zip(label_X, label_Y):
             prev_y = STARTING_LABEL_INDEX
             if len(X) != len(Y):
                 print(X, Y)
@@ -49,6 +51,9 @@ class FeatureSet():
                 # Adds features
                 self._add(prev_y, y, X, t)
                 prev_y = y
+
+    def __len__(self):
+        return self.num_features
 
     def _add(self, prev_y, y, X, t):
         for feature_string in self.feature_func(X, t):
@@ -88,6 +93,7 @@ class FeatureSet():
                 for (prev_y, y), feature_id in self.feature_dic[feature_string].items():
                     inner_products[(prev_y, y)] += params[feature_id]
             except KeyError:
+                print("KeyError for calc inner product")
                 pass
         return [((prev_y, y), score) for (prev_y, y), score in inner_products.items()]
 

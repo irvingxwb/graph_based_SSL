@@ -162,9 +162,19 @@ def _gradient(params, *args):
     return GRADIENT * -1
 
 
-def _get_training_feature_data(self):
-    return [[self.feature_set.get_feature_list(X, t) for t in range(len(X))]
-            for X, _ in self.training_data]
+def processLabelData(training_data):
+    X = []
+    y = []
+    for sent in training_data:
+        temp_X = []
+        temp_y = []
+        for word in sent:
+            temp_X.append([word[0], word[3]])
+            temp_y.append(word[3])
+        X.append(temp_X)
+        y.append(temp_y)
+
+    return X, y
 
 
 class LinearChainCRF():
@@ -181,7 +191,11 @@ class LinearChainCRF():
 
     def __init__(self, feature_set, training_data):
         self.feature_set = feature_set
-        self.training_data = training_data
+        self.training_data, _ = processLabelData(training_data)
+
+    def _get_training_feature_data(self):
+        return [[self.feature_set.get_feature_list(X, t) for t in range(len(X))]
+                for X in self.training_data]
 
     def train(self):
         logger.debug('Start training CRF')
@@ -191,6 +205,16 @@ class LinearChainCRF():
         logger.debug("** Number of labels: %d" % (self.num_labels - 1))
         logger.debug("** Number of features: %d" % len(self.feature_set.feature_dic))
 
+        self.params = np.zeros(len(self.feature_set))
+
+        # training_feature_data = self._get_training_feature_data()
+        # print(training_feature_data)
+        # for X_features in training_feature_data:
+        #     potential_table = _generate_potential_table(self.params, len(self.label_dic), self.feature_set,
+        #                                                 X_features, inference=False)
+        #     # alpha, beta, Z, scaling_dic = _forward_backward(len(self.label_dic), len(X_features), potential_table)
+        #     break
+
         # Estimates parameters to maximize log-likelihood of the corpus.
         self._estimate_parameters()
 
@@ -198,7 +222,7 @@ class LinearChainCRF():
 
     def _get_training_feature_data(self):
         return [[self.feature_set.get_feature_list(X, t) for t in range(len(X))]
-                for X, _ in self.training_data]
+                for X in self.training_data]
 
     def _estimate_parameters(self):
         training_feature_data = self._get_training_feature_data()
@@ -222,9 +246,50 @@ class LinearChainCRF():
             logger.debug('* end computing')
             break
 
-
         # if information['warnflag'] != 0:
         #     print('* Warning (code: %d)' % information['warnflag'])
         #     if 'task' in information.keys():
         #         print('* Reason: %s' % (information['task']))
         # print('* Likelihood: %s' % str(log_likelihood))
+
+    def inference(self, X):
+        """
+        Finds the best label sequence.
+        """
+        potential_table = _generate_potential_table(self.params, self.num_labels,
+                                                    self.feature_set, X, inference=True)
+        Yprime = self.viterbi(X, potential_table)
+        return Yprime
+
+    def viterbi(self, X, potential_table):
+        time_length = len(X)
+        max_table = np.zeros((time_length, self.num_labels))
+        argmax_table = np.zeros((time_length, self.num_labels), dtype='int64')
+
+        t = 0
+        for label_id in range(self.num_labels):
+            max_table[t, label_id] = potential_table[t][STARTING_LABEL_INDEX, label_id]
+        for t in range(1, time_length):
+            for label_id in range(1, self.num_labels):
+                max_value = -float('inf')
+                max_label_id = None
+                for prev_label_id in range(1, self.num_labels):
+                    value = max_table[t - 1, prev_label_id] * potential_table[t][prev_label_id, label_id]
+                    if value > max_value:
+                        max_value = value
+                        max_label_id = prev_label_id
+                max_table[t, label_id] = max_value
+                argmax_table[t, label_id] = max_label_id
+
+        sequence = list()
+        next_label = max_table[time_length - 1].argmax()
+        sequence.append(next_label)
+        for t in range(time_length - 1, -1, -1):
+            next_label = argmax_table[t, next_label]
+            sequence.append(next_label)
+        return [self.label_dic[label_id] for label_id in sequence[::-1][1:]]
+
+    def save(self):
+        with open('param', 'w') as file:
+            for listitem in self.params:
+                file.write('%s\n' % listitem)

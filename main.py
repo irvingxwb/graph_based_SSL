@@ -38,7 +38,7 @@ if __name__ == '__main__':
     unlabeledNum = 0
 
     label_data = preprocess_label(label_data)
-    label_data = label_data[0:8000]
+    label_data = label_data
     logger.debug("length of label_data: "+ str(len(label_data)))
     # unlabel_data = preprocess_unlabel(unlabel_data)
     # all_data = label_data + unlabel_data
@@ -59,11 +59,12 @@ if __name__ == '__main__':
         features_list.extend(features)
 
     logger.debug("preprocess data")
-    featureSet = FeatureSet(sent_set=label_data, labels_set=label_target)
+    featureSet = FeatureSet(data_set=label_data)
     logger.debug("Construct FeatureSet")
 
     crf = LinearChainCRF(feature_set=featureSet, training_data=label_data)
     crf.train()
+    crf.save()
 
     # pmi = PMI(ngrams_list, features_list)
     # logger.debug("Construct PMI")
