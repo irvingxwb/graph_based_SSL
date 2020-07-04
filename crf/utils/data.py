@@ -9,10 +9,7 @@ import sys
 from .alphabet import Alphabet
 from .functions import *
 
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle as pickle
+import pickle as pickle
 
 START = "</s>"
 UNKNOWN = "</unk>"
