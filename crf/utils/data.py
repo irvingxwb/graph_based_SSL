@@ -277,10 +277,6 @@ class Data:
                     self.feature_emb_dirs[idx], self.feature_alphabets[idx], self.feature_emb_dims[idx],
                     self.norm_feature_embs[idx])
 
-    def build_word_emb(self):
-        # TO DO:
-        pass
-
     def generate_instance(self, name):
 
         if name == "train":

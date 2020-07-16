@@ -11,12 +11,15 @@ import numpy as np
 from .charbilstm import CharBiLSTM
 from .charbigru import CharBiGRU
 from .charcnn import CharCNN
+import logging
+
+logger = logging.getLogger('WordRep')
 
 
 class WordRep(nn.Module):
     def __init__(self, data):
         super(WordRep, self).__init__()
-        print("build word representation...")
+        logger.info("build word representation...")
         self.gpu = data.HP_gpu
         self.use_char = data.use_char
         self.batch_size = data.HP_batch_size
@@ -87,7 +90,7 @@ class WordRep(nn.Module):
         batch_size = word_inputs.size(0)
         sent_len = word_inputs.size(1)
 
-        word_embs =  self.word_embedding(word_inputs)
+        word_embs = self.word_embedding(word_inputs)
 
         word_list = [word_embs]
         if not self.sentence_classification:

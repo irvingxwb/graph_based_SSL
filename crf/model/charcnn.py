@@ -8,11 +8,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import logging
+
+logger = logging.getLogger('CharCNN')
 
 class CharCNN(nn.Module):
     def __init__(self, alphabet_size, pretrain_char_embedding, embedding_dim, hidden_dim, dropout, gpu):
         super(CharCNN, self).__init__()
-        print("build char sequence feature extractor: CNN ...")
+        logger.info("build char sequence feature extractor: CNN ...")
         self.gpu = gpu
         self.hidden_dim = hidden_dim
         self.char_drop = nn.Dropout(dropout)

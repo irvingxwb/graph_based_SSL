@@ -1,0 +1,51 @@
+### use # to comment out the configure item
+
+### I/O ###
+train_dir: data/train.bmes
+dev_dir: data/dev.bmes
+test_dir: data/test.bmes
+model_dir: data/lstmcrf
+word_emb_dir: data/sample.word.emb
+load_model_dir: data/lstmcrf
+
+#raw_dir=
+#decode_dir=
+#dset_dir=
+#load_model_dir=
+#char_emb_dir=
+
+norm_word_emb: False
+norm_char_emb: False
+number_normalized: True
+seg: True
+word_emb_dim: 50
+char_emb_dim: 30
+
+###NetworkConfiguration###
+use_crf: True
+use_char: True
+word_seq_feature: LSTM
+char_seq_feature: CNN
+#feature=[POS] emb_size=20
+#feature=[Cap] emb_size=20
+#nbest=1
+
+###TrainingSetting###
+status: train
+optimizer: SGD
+HP_iteration: 20
+HP_batch_size: 5
+ave_batch_loss: False
+
+###Hyperparameters###
+HP_cnn_layer: 4
+HP_char_hidden_dim: 50
+HP_hidden_dim: 200
+HP_dropout: 0.5
+HP_lstm_layer: 1
+HP_bilstm: True
+HP_learning_rate: 0.015
+HP_lr_decay: 0.05
+HP_momentum: 0
+HP_l2: 1e-8
+

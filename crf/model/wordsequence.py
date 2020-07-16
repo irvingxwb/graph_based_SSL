@@ -10,12 +10,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from .wordrep import WordRep
+import logging
+
+logger = logging.getLogger('WordSequence')
 
 
 class WordSequence(nn.Module):
     def __init__(self, data):
         super(WordSequence, self).__init__()
-        print("build word sequence feature extractor: %s..."%(data.word_feature_extractor))
+        logger.info("build word sequence feature extractor: %s..."%(data.word_feature_extractor))
         self.gpu = data.HP_gpu
         self.use_char = data.use_char
         # self.batch_size = data.HP_batch_size
@@ -49,7 +52,7 @@ class WordSequence(nn.Module):
             # cnn_hidden = data.HP_hidden_dim
             self.word2cnn = nn.Linear(self.input_size, data.HP_hidden_dim)
             self.cnn_layer = data.HP_cnn_layer
-            print("CNN layer: ", self.cnn_layer)
+            logger.info("CNN layer: ", self.cnn_layer)
             self.cnn_list = nn.ModuleList()
             self.cnn_drop_list = nn.ModuleList()
             self.cnn_batchnorm_list = nn.ModuleList()
@@ -107,7 +110,7 @@ class WordSequence(nn.Module):
             hidden = None
             lstm_out, hidden = self.lstm(packed_words, hidden)
             lstm_out, _ = pad_packed_sequence(lstm_out)
-            ## lstm_out (seq_len, seq_len, hidden_size)
+            ## lstm_out (seq_len, batch_size, hidden_size)
             feature_out = self.droplstm(lstm_out.transpose(1,0))
         ## feature_out (batch_size, seq_len, hidden_size)
         outputs = self.hidden2tag(feature_out)

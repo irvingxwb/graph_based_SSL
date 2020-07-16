@@ -36,7 +36,7 @@ class CRF(nn.Module):
 
     def __init__(self, label_size, gpu):
         super(CRF, self).__init__()
-        print("build CRF...")
+        logger.info("build CRF...")
         self.gpu = gpu
         # Matrix of transition parameters.  Entry i,j is the score of transitioning from i to j.
         self.label_size = label_size
@@ -53,6 +53,20 @@ class CRF(nn.Module):
 
         # self.transitions = nn.Parameter(torch.Tensor(self.label_size+2, self.label_size+2))
         # self.transitions.data.zero_()
+
+    def forward(self, feats):
+        path_score, best_path = self._viterbi_decode(feats)
+        return path_score, best_path
+
+    def neg_log_likelihood_loss(self, feats, mask, tags):
+        # nonegative log likelihood
+        batch_size = feats.size(0)
+        mask = mask.type(torch.bool)
+        forward_score, scores = self._calculate_PZ(feats, mask)
+        gold_score = self._score_sentence(scores, mask, tags)
+        # print "batch, f:", forward_score.data[0], " g:", gold_score.data[0], " dis:", forward_score.data[0] - gold_score.data[0]
+        # exit(0)
+        return forward_score - gold_score
 
     def _calculate_PZ(self, feats, mask):
         """
@@ -101,6 +115,7 @@ class CRF(nn.Module):
 
             ## replace the partition where the maskvalue=1, other partition value keeps the same
             partition.masked_scatter_(mask_idx, masked_cur_partition)
+
         # until the last state, add transition score for all partition (and do log_sum_exp) then select the value in STOP_TAG
         cur_values = self.transitions.view(1, tag_size, tag_size).expand(batch_size, tag_size,
                                                                          tag_size) + partition.contiguous().view(
@@ -164,7 +179,7 @@ class CRF(nn.Module):
             partition_history.append(partition)
             ## cur_bp: (batch_size, tag_size) max source score position in current tag
             ## set padded label as 0, which will be filtered in post processing
-            cur_bp.masked_fill_(mask[idx].view(batch_size, 1).expand(batch_size, tag_size), 0)
+            cur_bp.masked_fill_(mask[idx].view(batch_size, 1).expand(batch_size, tag_size).type(torch.bool), 0)
             back_points.append(cur_bp)
         # exit(0)
         ### add score to final STOP_TAG
@@ -205,10 +220,6 @@ class CRF(nn.Module):
         path_score = None
         decode_idx = decode_idx.transpose(1, 0)
         return path_score, decode_idx
-
-    def forward(self, feats):
-        path_score, best_path = self._viterbi_decode(feats)
-        return path_score, best_path
 
     def _score_sentence(self, scores, mask, tags):
         """
@@ -261,15 +272,6 @@ class CRF(nn.Module):
         # gold_score = start_energy.sum() + tg_energy.sum() + end_energy.sum()
         gold_score = tg_energy.sum() + end_energy.sum()
         return gold_score
-
-    def neg_log_likelihood_loss(self, feats, mask, tags):
-        # nonegative log likelihood
-        batch_size = feats.size(0)
-        forward_score, scores = self._calculate_PZ(feats, mask)
-        gold_score = self._score_sentence(scores, mask, tags)
-        # print "batch, f:", forward_score.data[0], " g:", gold_score.data[0], " dis:", forward_score.data[0] - gold_score.data[0]
-        # exit(0)
-        return forward_score - gold_score
 
     def _viterbi_decode_nbest(self, feats, mask, nbest):
         """
