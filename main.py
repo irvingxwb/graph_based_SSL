@@ -1,11 +1,12 @@
-from graph.helper import *
-from graph.preprocess import preprocess_label, preprocess_unlabel
+from graph.functions import *
 from graph.graph import *
 from graph.pmi import *
 import argparse
+import torch
 from gensim.models import Word2Vec
 from gensim.models import KeyedVectors
 import crf.crf_main as crf
+from crf.crf_main import NCRFpp
 
 import timeit
 from sys import getsizeof, stdout
@@ -30,17 +31,17 @@ def logging_star():
     logger.info('**' * 20)
 
 
-class ModelData:
+class Dataset:
     # I/O
     word_emb_dir = None
-
     labeled_train_dir = None
     unlabeled_train_dir = None
 
     # data
-    labeled_data = None
-    unlabeled_data = None
+    labeled_train_text = None
+    labeled_train_label = None
     train_data = None
+    all_data = None
 
     # hyper parameters
     k_nearest = 3
@@ -48,55 +49,52 @@ class ModelData:
     def __init__(self):
         pass
 
+    def preprocess_data(self, raw_data):
+        text = []
+        label = []
+        text_sent = []
+        label_sent = []
+        for line in raw_data:
+            if line == '\n' and len(text_sent) != 0:
+                text.append(text_sent)
+                label.append(label_sent)
+                text_sent = []
+                label_sent = []
+            else:
+                sent = line.split()
+                text_sent.append(sent[0])
+                label_sent.append(sent[1])
+
+        return text, label
+
     def load_all_data(self):
         if self.labeled_train_dir:
             with open(self.labeled_train_dir) as f:
                 raw_data = f.readlines()
-            self.labeled_data = preprocess_label(raw_data)
+            self.labeled_train_text, self.labeled_train_label = self.preprocess_data(raw_data)
 
-        if self.unlabeled_train_dir:
-            with open(self.unlabeled_train_dir) as f:
-                raw_data = f.readlines()
-            self.unlabeled_data = preprocess_unlabel(raw_data)
+        self.all_data = self.labeled_train_text
 
-        self.train_data = self.labeled_data + self.unlabeled_data
+        # if self.unlabeled_train_dir:
+        #     with open(self.unlabeled_train_dir) as f:
+        #         raw_data = f.readlines()
+        #     self.unlabeled_trai= preprocess_data(raw_data)
 
     def get_graph_list(self):
         ngrams_list = []
-        for sent in self.all_data:
+        for sent in self.labeled_train_text:
             ngrams = sent2trigrams(sent)
             ngrams_list.extend(ngrams)
 
         features_list = []
-        for sent in self.all_data:
+        for sent in self.labeled_train_text:
             features = sent2graphfeatures(sent)
             features_list.extend(features)
 
         return ngrams_list, features_list
 
     def get_train_list(self, flag='POS'):
-        text = []
-        label = []
-        if flag == 'POS':
-            for sent in self.train_data:
-                text_list = []
-                label_list = []
-                for word in sent:
-                    text_list.append(normalize_word(word[0]))
-                    label_list.append(word[2])
-                text.append(text_list)
-                label.append(label_list)
-        elif flag == 'NER':
-            for sent in self.train_data:
-                text_list = []
-                label_list = []
-                for word in sent:
-                    text_list.append(normalize_word(word[0]))
-                    label_list.append(word[3])
-                text.append(text_list)
-                label.append(label_list)
-
-        return text, label
+        return self.labeled_train_text, self.labeled_train_label
 
     def build_word_emb(self):
         sentences, _ = self.get_train_list()
@@ -107,29 +105,29 @@ class ModelData:
 
 
 if __name__ == '__main__':
-
     parser = argparse.ArgumentParser()
-    parser.add_argument("--labeled_train", default='./data/labeled_train')
-    parser.add_argument("--unlabeled_train", default='./data/unlabeled_train')
+    parser.add_argument("--labeled_train", default='./data/train.bmes')
+    parser.add_argument("--unlabeled_train", default=None)
     args = parser.parse_args()
 
     # load config
-    data = ModelData()
-    data.labeled_train_dir = args.labeled_train
-    data.unlabeled_train_dir = args.unlabeled_train
+    data_set = Dataset()
+    data_set.labeled_train_dir = args.labeled_train
+    data_set.unlabeled_train_dir = args.unlabeled_train
 
-    # load dataset
+    # load data set
     logger.debug("start reading data")
-    data.load_all_data()
-    logger.debug("length of label_data: " + str(len(data.labeled_data)))
+    data_set.load_all_data()
+    logger.debug("length of label_data: " + str(len(data_set.labeled_train_text)))
 
-    # build word embeddings
-    data.build_word_emb()
-    logger.debug("finish build word embeddings")
+    crf = NCRFpp()
+    crf.build_alphabet()
+    crf.decode_marginals()
 
-    logging_star()
+    # # build word embeddings
+    # data_set.build_word_emb()
+    # logger.debug("finish build word embeddings")
 
-    #
     # # create graph with labeled and unlabeled data
     # ngrams_list, graph_features_list = data.get_graph_list()
     # pmi = PMI(ngrams_list, graph_features_list)
@@ -137,10 +135,14 @@ if __name__ == '__main__':
     # logger.debug("finish construct vectors improve")
     #
     # # construct graph
-    # graph = Graph(list(pmi.ngrams_feature_map.keys()), pmi_vectors, len(data.unlabeled_data), data.k_nearest)
+    # graph = Graph(list(pmi.ngrams_feature_map.keys()), pmi_vectors, 0, data.k_nearest)
     # logger.debug("finish Construct Graph")
 
     # posterior decoding
+    logging_star()
+
+    # marginal_prob = crf.get_marginals()
+    # logger.debug("finish crf train")
 
     #
     # # token to type map

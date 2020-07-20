@@ -105,7 +105,8 @@ def recover_nbest_label(pred_variable, mask_variable, label_alphabet, word_recov
     for idx in range(batch_size):
         pred = []
         for idz in range(nbest):
-            each_pred = [label_alphabet.get_instance(pred_tag[idx][idy][idz]) for idy in range(seq_len) if mask[idx][idy] != 0]
+            each_pred = [label_alphabet.get_instance(pred_tag[idx][idy][idz]) for idy in range(seq_len) if
+                         mask[idx][idy] != 0]
             pred.append(each_pred)
         pred_label.append(pred)
     return pred_label
@@ -134,31 +135,34 @@ def evaluate(data, model, name, nbest=None):
     batch_size = data.HP_batch_size
     start_time = time.time()
     train_num = len(instances)
-    total_batch = train_num//batch_size+1
+    total_batch = train_num // batch_size + 1
     for batch_id in range(total_batch):
-        start = batch_id*batch_size
-        end = (batch_id+1)*batch_size
+        start = batch_id * batch_size
+        end = (batch_id + 1) * batch_size
         if end > train_num:
             end = train_num
         instance = instances[start:end]
         if not instance:
             continue
-        batch_word, batch_features, batch_wordlen, batch_wordrecover, batch_char, batch_charlen, batch_charrecover, batch_label, mask  = batchify_with_label(instance, data.HP_gpu, False)
+        batch_word, batch_features, batch_wordlen, batch_wordrecover, batch_char, batch_charlen, batch_charrecover, batch_label, mask = batchify_with_label(
+            instance, data.HP_gpu, False)
         if nbest and not data.sentence_classification:
-            scores, nbest_tag_seq = model.decode_nbest(batch_word,batch_features, batch_wordlen, batch_char, batch_charlen, batch_charrecover, mask, nbest)
+            scores, nbest_tag_seq = model.decode_nbest(batch_word, batch_features, batch_wordlen, batch_char,
+                                                       batch_charlen, batch_charrecover, mask, nbest)
             nbest_pred_result = recover_nbest_label(nbest_tag_seq, mask, data.label_alphabet, batch_wordrecover)
             nbest_pred_results += nbest_pred_result
             pred_scores += scores[batch_wordrecover].cpu().data.numpy().tolist()
             ## select the best sequence to evalurate
             tag_seq = nbest_tag_seq[:, :, 0]
         else:
-            tag_seq = model(batch_word, batch_features, batch_wordlen, batch_char, batch_charlen, batch_charrecover, mask)
+            tag_seq = model(batch_word, batch_features, batch_wordlen, batch_char, batch_charlen, batch_charrecover,
+                            mask)
         # logger.info("tag:",tag_seq)
         pred_label, gold_label = recover_label(tag_seq, batch_label, mask, data.label_alphabet, batch_wordrecover)
         pred_results += pred_label
         gold_results += gold_label
     decode_time = time.time() - start_time
-    speed = len(instances)/decode_time
+    speed = len(instances) / decode_time
     acc, p, r, f = get_ner_fmeasure(gold_results, pred_results, data.tagScheme)
 
     return speed, acc, p, r, f, pred_results, pred_scores
@@ -239,7 +243,8 @@ def batchify_with_label(input_batch_list, gpu, if_train=True):
         char_seq_tensor = char_seq_tensor.cuda()
         char_seq_recover = char_seq_recover.cuda()
         mask = mask.cuda()
-    return word_seq_tensor, feature_seq_tensors, word_seq_lengths, word_seq_recover, char_seq_tensor, char_seq_lengths, char_seq_recover, label_seq_tensor, mask.type(torch.bool)
+    return word_seq_tensor, feature_seq_tensors, word_seq_lengths, word_seq_recover, char_seq_tensor, char_seq_lengths, char_seq_recover, label_seq_tensor, mask.type(
+        torch.bool)
 
 
 def train(data):
@@ -369,67 +374,107 @@ def train(data):
         gc.collect()
 
 
-def load_model_decode(data, name, nbest=False):
-    logger.info("Load Model from file: ", str(data.model_dir))
-
-    model = SeqLabel(data)
-    # model = SeqModel(data)
-    ## load model need consider if the model trained in GPU and load in CPU, or vice versa
-    # if not gpu:
-    #     model.load_state_dict(torch.load(model_dir))
-    #     # model.load_state_dict(torch.load(model_dir), map_location=lambda storage, loc: storage)
-    #     # model = torch.load(model_dir, map_location=lambda storage, loc: storage)
-    # else:
-    #     model.load_state_dict(torch.load(model_dir))
-    #     # model = torch.load(model_dir)
-    model.load_state_dict(torch.load(data.load_model_dir))
-
-    logger.info("Decode %s data, nbest: %s ..." % (name, data.nbest))
-    start_time = time.time()
-    speed, acc, p, r, f, pred_results, pred_scores = evaluate(data, model, name, nbest)
-    end_time = time.time()
-    time_cost = end_time - start_time
-    if data.seg:
-        logger.info("%s: time:%.2fs, speed:%.2fst/s; acc: %.4f, p: %.4f, r: %.4f, f: %.4f" % (name, time_cost, speed,
-                                                                                              acc, p, r, f))
-    else:
-        logger.info("%s: time:%.2fs, speed:%.2fst/s; acc: %.4f" % (name, time_cost, speed, acc))
-    return pred_results, pred_scores
-
-
-def decode_sequence(data_dir):
-    # read config from file
-    data.read_config('decode_config.yaml')
-    logger.info("model: decode")
-    data.raw_dir = data_dir
-    data.load(data.dset_dir)
-
-    logger.info(data.raw_dir)
-    data.generate_instance('raw'),
-    logger.info("nbest: %s" % data.nbest)
-
-    decode_results, pred_scores = load_model_decode(data, 'raw', nbest=data.nbest)
-    data.write_decoded_results(decode_results, 'raw')
-
-    return decode_results
-
-
-def train_model(config='train_config.yaml'):
+class NCRFpp:
     data = Data()
-    # read config from file
-    data.read_config(config)
-    data.HP_gpu = torch.cuda.is_available()
-    data.HP_l2 = float(data.HP_l2)
-    logger.info("GPU available: " + str(data.HP_gpu))
+    model = None
 
-    if data.status == 'train':
+    decode_name = 'raw'
+
+    def __init__(self, config="train_config.yaml"):
+        self.data.read_config(config)
+        self.data.HP_gpu = torch.cuda.is_available()
+        self.data.HP_l2 = float(self.data.HP_l2)
+        logger.info("GPU available: " + str(self.data.HP_gpu))
+
+    def build_alphabet(self):
         logger.info("MODEL: train")
-        data_initialization(data)
-        data.generate_instance('train')
-        data.generate_instance('dev')
-        data.generate_instance('test')
-        data.build_pretrain_emb()
-        train(data)
+        data_initialization(self.data)
+
+    def train_crf(self):
+        self.data.generate_instance('train')
+        self.data.generate_instance('dev')
+        self.data.generate_instance('test')
+        self.data.build_pretrain_emb()
+        train(self.data)
+
+    def decode_marginals(self):
+        # read config from file
+        self.data.read_config('decode_config.yaml')
+        logger.info("model: decode")
+
+        self.data.load(self.data.dset_dir)
+
+        logger.info("data raw dir: ", self.data.raw_dir)
+        self.data.generate_instance('raw'),
+
+        self.model = SeqLabel(data)
+        self.model.load_state_dict(torch.load(data.load_model_dir))
+
+        instances = self.data.raw_Ids
+
+        pred_scores = []
+        pred_results = []
+        gold_results = []
+        ## set model in eval model
+        self.model.eval()
+        batch_size = data.HP_batch_size
+        start_time = time.time()
+        train_num = len(instances)
+        total_batch = train_num // batch_size + 1
+
+        for batch_id in range(total_batch):
+            start = batch_id * batch_size
+            end = (batch_id + 1) * batch_size
+            if end > train_num:
+                end = train_num
+            instance = instances[start:end]
+            if not instance:
+                continue
+            batch_word, batch_features, batch_wordlen, batch_wordrecover, batch_char, batch_charlen, batch_charrecover, \
+            batch_label, mask = batchify_with_label(instance, data.HP_gpu, False)
+
+            tag_seq, tag_seq_probs = self.model(batch_word, batch_features, batch_wordlen, batch_char, batch_charlen,
+                                           batch_charrecover, mask,
+                                           prob=True)
+            # logger.info("tag:",tag_seq)
+            pred_label, gold_label = recover_label(tag_seq, batch_label, mask, data.label_alphabet, batch_wordrecover)
+            pred_results += pred_label
+            gold_results += gold_label
+
+            break
+
+        decode_time = time.time() - start_time
+        speed = len(instances) / decode_time
+        acc, p, r, f = get_ner_fmeasure(gold_results, pred_results, data.tagScheme)
+
+        return tag_seq, tag_seq_probs
+
+    def decode_sequence(self):
+        logger.info("model: decode")
+
+        logger.info(self.data.raw_dir)
+        self.data.generate_instance('raw'),
+
+        if not self.model:
+            self.model = SeqLabel(self.data)
+
+        logger.info("Load Model from file: ", str(self.data.model_dir))
+        self.model.load_state_dict(torch.load(self.data.load_model_dir))
+
+        logger.info("Decode %s data, nbest: %s ..." % (self.decode_name, self.data.nbest))
+        start_time = time.time()
+        speed, acc, p, r, f, pred_results, pred_scores = evaluate(self.data, self.model, self.decode_name, self.data.nbest)
+        end_time = time.time()
+        time_cost = end_time - start_time
+        if self.data.seg:
+            logger.info(
+                "%s: time:%.2fs, speed:%.2fst/s; acc: %.4f, p: %.4f, r: %.4f, f: %.4f" % (self.decode_name, time_cost, speed,
+                                                                                          acc, p, r, f))
+        else:
+            logger.info("%s: time:%.2fs, speed:%.2fst/s; acc: %.4f" % (self.decode_name, time_cost, speed, acc))
+
+        return pred_results, pred_scores
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Tuning with NCRF++')

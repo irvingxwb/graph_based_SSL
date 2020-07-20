@@ -84,6 +84,7 @@ class Data:
         self.char_feature_extractor = "CNN"  ## "LSTM"/"CNN"/"GRU"/None
         self.use_crf = True
         self.nbest = None
+        self.sentence_classification = False
 
         ## Training
         self.average_batch_loss = False
@@ -391,7 +392,6 @@ class Data:
                     setattr(self, key, Path(config[key]))
                 else:
                     setattr(self, key, config[key])
-
 
     def str2bool(string):
         if string == "True" or string == "true" or string == "TRUE":

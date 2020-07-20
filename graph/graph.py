@@ -1,5 +1,5 @@
 from collections import Counter
-from .helper import operate_dict
+from .functions import operate_dict
 import numpy as np
 from scipy.sparse import lil_matrix, csr_matrix
 from sklearn.metrics import pairwise_distances

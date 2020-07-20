@@ -53,23 +53,30 @@ class SeqLabel(nn.Module):
             tag_seq = tag_seq.view(batch_size, seq_len)
         if self.average_batch:
             total_loss = total_loss / batch_size
+
         return total_loss, tag_seq
 
     def forward(self, word_inputs, feature_inputs, word_seq_lengths, char_inputs, char_seq_lengths, char_seq_recover,
-                mask):
+                mask, prob=False):
         outs = self.word_hidden(word_inputs, feature_inputs, word_seq_lengths, char_inputs, char_seq_lengths,
                                 char_seq_recover)
         batch_size = word_inputs.size(0)
         seq_len = word_inputs.size(1)
-        if self.use_crf:
+        if self.use_crf and not prob:
             scores, tag_seq = self.crf._viterbi_decode(outs, mask)
+        elif self.use_crf:
+            scores, tag_seq, tag_seq_probs = self.crf._viterbi_decode_probs(outs, mask)
         else:
             outs = outs.view(batch_size * seq_len, -1)
             _, tag_seq = torch.max(outs, 1)
             tag_seq = tag_seq.view(batch_size, seq_len)
             ## filter padded position with zero
             tag_seq = mask.long() * tag_seq
-        return tag_seq
+
+        if not prob:
+            return tag_seq
+        else:
+            return tag_seq, tag_seq_probs
 
     # def get_lstm_features(self, word_inputs, word_seq_lengths, char_inputs, char_seq_lengths, char_seq_recover):
     #     return self.word_hidden(word_inputs, word_seq_lengths, char_inputs, char_seq_lengths, char_seq_recover)
