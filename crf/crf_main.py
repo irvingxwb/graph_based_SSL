@@ -401,23 +401,22 @@ class NCRFpp:
         # read config from file
         self.data.read_config('decode_config.yaml')
         logger.info("model: decode")
-
-        self.data.load(self.data.dset_dir)
-
-        logger.info("data raw dir: ", self.data.raw_dir)
+        logger.info("data raw dir: ", str(self.data.raw_dir))
         self.data.generate_instance('raw'),
 
-        self.model = SeqLabel(data)
-        self.model.load_state_dict(torch.load(data.load_model_dir))
+        self.model = SeqLabel(self.data)
+        self.model.load_state_dict(torch.load(self.data.load_model_dir))
 
         instances = self.data.raw_Ids
 
         pred_scores = []
         pred_results = []
         gold_results = []
+        tag_seq = []
+        tag_seq_probs = []
         ## set model in eval model
         self.model.eval()
-        batch_size = data.HP_batch_size
+        batch_size = self.data.HP_batch_size
         start_time = time.time()
         train_num = len(instances)
         total_batch = train_num // batch_size + 1
@@ -431,23 +430,21 @@ class NCRFpp:
             if not instance:
                 continue
             batch_word, batch_features, batch_wordlen, batch_wordrecover, batch_char, batch_charlen, batch_charrecover, \
-            batch_label, mask = batchify_with_label(instance, data.HP_gpu, False)
+            batch_label, mask = batchify_with_label(instance, self.data.HP_gpu, False)
 
-            tag_seq, tag_seq_probs = self.model(batch_word, batch_features, batch_wordlen, batch_char, batch_charlen,
+            temp_seq, temp_probs = self.model(batch_word, batch_features, batch_wordlen, batch_char, batch_charlen,
                                            batch_charrecover, mask,
                                            prob=True)
             # logger.info("tag:",tag_seq)
-            pred_label, gold_label = recover_label(tag_seq, batch_label, mask, data.label_alphabet, batch_wordrecover)
+            pred_label, gold_label = recover_label(tag_seq, batch_label, mask, self.data.label_alphabet, batch_wordrecover)
             pred_results += pred_label
             gold_results += gold_label
+            tag_seq += temp_seq
+            tag_seq_probs += temp_probs
 
-            break
-
-        decode_time = time.time() - start_time
-        speed = len(instances) / decode_time
         acc, p, r, f = get_ner_fmeasure(gold_results, pred_results, data.tagScheme)
 
-        return tag_seq, tag_seq_probs
+        return tag_seq, tag_seq_probs, acc
 
     def decode_sequence(self):
         logger.info("model: decode")

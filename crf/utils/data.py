@@ -279,7 +279,6 @@ class Data:
                     self.norm_feature_embs[idx])
 
     def generate_instance(self, name):
-
         if name == "train":
             self.train_texts, self.train_Ids = read_instance(self.train_dir, self.word_alphabet, self.char_alphabet,
                                                              self.feature_alphabets, self.label_alphabet,

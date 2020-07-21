@@ -1,7 +1,4 @@
-from collections import Counter
-import numpy as np
-from scipy.sparse import lil_matrix, csr_matrix
-from sklearn.metrics import pairwise_distances
+
 import timeit
 import logging
 import math
@@ -60,15 +57,7 @@ class PMI:
             len(self.feature_dict)))
         logger.debug("PMI: complete pmi with: " + str(self.sum_ngrams) + " " + str(self.sum_features))
 
-    def pmi_score(self, ngram, feature, feature_name):
 
-        count_ngram_feature = self.ngrams_feature_counters[feature_name][(ngram, feature)]
-        count_ngram = self.ngrams_counter[ngram]
-        count_feature = self.feature_counters[feature_name][feature]
-
-        score = np.log((count_ngram_feature * self.sum_ngrams) / (count_ngram * count_feature))
-
-        return score
 
     # deprecated
     # def pmi_vectors_sparse(self):

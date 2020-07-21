@@ -1,35 +1,120 @@
-from collections import Counter
 from .functions import operate_dict
-import numpy as np
 from scipy.sparse import lil_matrix, csr_matrix
 from sklearn.metrics import pairwise_distances
+from collections import Counter
+import numpy as np
 import timeit
 import logging
 import math
+import torch
 
 logger = logging.getLogger("Graph")
 
 
 class Graph:
+    data_set = None
+
+    # pmi
+    feature_dict = {}
+    ngrams_counter = None
+    feature_counters = None
+    ngrams_feature_counters = None
+    ngrams_feature_map = None
+
+    sum_features = 0
+    sum_ngrams = 0
+    pmi_vectors = None
+
+    # graph
+    ngrams = None
+    graph_map = None
+    ngram_prob_map = None
+
     # k for k_nearest
-    def __init__(self, ngrams, pmi_vectors, unlabeled, k):
-        self.ngrams = ngrams
-        self.unlabeled = unlabeled
-        self.graph_map = dict.fromkeys(ngrams)
-        self.ngram_prob_map = {}
-        self.length = len(ngrams)
+    def __init__(self, data_set):
+        self.data_set = data_set
+        self.build_feature_dicts()
+
+        self.ngrams = self.ngrams_feature_map.keys()
+        self.graph_map = dict.fromkeys(self.ngrams_feature_map.keys())
+        self.length = len(self.ngrams)
         # compute k nearest map
-        logger.debug(f'check length {str(len(self.ngrams))}  {str(pmi_vectors.shape[0])}')
 
-        start = timeit.default_timer()
-        self.compute_graph(pmi_vectors, k)
-        end = timeit.default_timer()
+    def __len__(self):
+        return self.length
 
-        logger.debug(f'Compute graph complete: {str(end - start)}')
-        # logger.debug(f'graph size {str(len(self.graph_map))}')
+    def build_feature_dicts(self):
+        # self.features = set()
+        ngrams_list, features_list = self.data_set.get_graph_list()
+
+        keys = features_list[0].keys()
+        feature_agg = []
+        ngrams_feature_agg = []
+
+        self.ngrams_counter = Counter(ngrams_list)
+        # count feature numbers
+        self.feature_counters = {}
+        # count (ngram, feature) numbers
+        self.ngrams_feature_counters = {}
+        # each ngram got different featurs
+        self.ngrams_feature_map = {}
+
+        # gather all features by its name
+        feature_count = 0
+        for ngram, features in zip(ngrams_list, features_list):
+            if ngram not in self.ngrams_feature_map:
+                self.ngrams_feature_map[ngram] = [features]
+            else:
+                self.ngrams_feature_map[ngram].append(features)
+
+            for feature_name, feature in features.items():
+                feature_agg.append(feature)
+                ngrams_feature_agg.append((ngram, feature))
+
+                if feature not in self.feature_dict:
+                    self.feature_dict[feature] = feature_count
+                    feature_count += 1
+
+        self.feature_counters = Counter(feature)
+        self.ngrams_feature_counters = Counter(self.ngram_feature)
+
+        # self.features = list(self.features)
+        self.sum_features = len(self.feature_dict)
+        self.sum_ngrams = len(self.ngrams_feature_map)
+
+        logger.debug("PMI: complete pmi with: %s %s" % str(self.sum_ngrams), str(self.sum_features))
+
+    def build_pmi_vectors(self):
+        ngram_idx = 0
+        # self.pmi_vectors = lil_matrix((self.sum_ngrams, self.sum_features))
+        # for ngram, features in self.ngrams_feature_map.items():
+        #     for feature in features:
+        #         for name, item in feature.items():
+        #             item_idx = self.feature_dict[item]
+        #             self.pmi_vectors[ngram_idx, item_idx] = self.pmi_score(ngram, item, name)
+        #
+        #     ngram_idx += 1
+
+        self.pmi_vectors = torch.zeros(self.sum_ngrams, self.sum_features, dtype=torch.float)
+        for ngram, features in self.ngrams_feature_map.items():
+            for feature in features:
+                for name, item in feature.items():
+                    item_idx = self.feature_dict[item]
+                    self.pmi_vectors[ngram_idx, item_idx] = self.pmi_score(ngram, item, name)
+
+            ngram_idx += 1
+
+    def pmi_score(self, ngram, feature, feature_name):
+
+        count_ngram_feature = self.ngrams_feature_counters[feature_name][(ngram, feature)]
+        count_ngram = self.ngrams_counter[ngram]
+        count_feature = self.feature_counters[feature_name][feature]
+
+        score = np.log((count_ngram_feature * self.sum_ngrams) / (count_ngram * count_feature))
+
+        return score
 
     def compute_graph(self, pmi_vectors, k):
-        pmi_vectors = pmi_vectors.tocsr()
         matrix_length = 1000
 
         start = timeit.default_timer()

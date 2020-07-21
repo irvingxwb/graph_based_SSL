@@ -45,6 +45,8 @@ class Dataset:
 
     # hyper parameters
     k_nearest = 3
+    unlabeled_num = 0
+    gpu = False
 
     def __init__(self):
         pass
@@ -112,6 +114,7 @@ if __name__ == '__main__':
 
     # load config
     data_set = Dataset()
+    data_set.gpu = torch.cuda.is_available()
     data_set.labeled_train_dir = args.labeled_train
     data_set.unlabeled_train_dir = args.unlabeled_train
 
@@ -120,23 +123,20 @@ if __name__ == '__main__':
     data_set.load_all_data()
     logger.debug("length of label_data: " + str(len(data_set.labeled_train_text)))
 
-    crf = NCRFpp()
-    crf.build_alphabet()
-    crf.decode_marginals()
+    # crf = NCRFpp()
+    # crf.build_alphabet()
+    # predict_tag, predict_probs, acc = crf.decode_marginals()
 
     # # build word embeddings
     # data_set.build_word_emb()
     # logger.debug("finish build word embeddings")
 
-    # # create graph with labeled and unlabeled data
-    # ngrams_list, graph_features_list = data.get_graph_list()
-    # pmi = PMI(ngrams_list, graph_features_list)
-    # pmi_vectors = pmi.pmi_vectors_improve()
-    # logger.debug("finish construct vectors improve")
-    #
-    # # construct graph
-    # graph = Graph(list(pmi.ngrams_feature_map.keys()), pmi_vectors, 0, data.k_nearest)
-    # logger.debug("finish Construct Graph")
+    # initialize graph
+    graph = Graph(data_set)
+    graph.build_feature_dicts()
+    graph.build_pmi_vectors()
+
+    logger.debug("finish Construct Graph")
 
     # posterior decoding
     logging_star()
