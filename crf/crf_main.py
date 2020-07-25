@@ -433,6 +433,8 @@ class NCRFpp:
 
             temp_seq, temp_probs = self.model(batch_word, batch_features, batch_wordlen, batch_char, batch_charlen,
                                            batch_charrecover, mask, prob=True)
+
+            return temp_seq, temp_probs, 1
             # logger.info("tag:",tag_seq)
             pred_label, gold_label = recover_label(temp_seq, batch_label, mask, self.data.label_alphabet, batch_wordrecover)
             pred_results += pred_label

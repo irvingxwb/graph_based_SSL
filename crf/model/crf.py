@@ -255,8 +255,6 @@ class CRF(nn.Module):
         partition = inivalues[:, START_TAG, :].clone().view(batch_size, tag_size)  # bat_size * to_target_size
         # print "init part:",partition.size()
         partition_history.append(partition)
-        values_history.append(inivalues)
-        decode_probs.append(partition)
         # iter over last scores
         for idx, cur_values in seq_iter:
             # previous to_target is current from_target
@@ -285,9 +283,12 @@ class CRF(nn.Module):
                                                                                                     tag_size).expand(
             batch_size, tag_size, tag_size)
         _, last_bp = torch.max(last_values, 1)
+
         pad_zero = autograd.Variable(torch.zeros(batch_size, tag_size)).long()
+        pad_zero_probs = autograd.Variable(torch.zeros(batch_size, tag_size, tag_size)).long()
         if self.gpu:
             pad_zero = pad_zero.cuda()
+            pad_zero_probs = pad_zero_probs.cuda()
 
         back_points.append(pad_zero)
         back_points = torch.cat(back_points).view(seq_len, batch_size, tag_size)
@@ -305,28 +306,36 @@ class CRF(nn.Module):
         back_points = back_points.transpose(1, 0).contiguous()
         ## decode from the end, padded position ids are 0, which will be filtered if following evaluation
         decode_idx = autograd.Variable(torch.LongTensor(seq_len, batch_size))
+        decode_probs = list()
         if self.gpu:
             decode_idx = decode_idx.cuda()
+            decode_probs = decode_probs.cuda()
         decode_idx[-1] = pointer.detach()
-        for idx in range(len(back_points) - 2, -1, -1):
-            pointer = torch.gather(back_points[idx], 1, pointer.contiguous().view(batch_size, 1))
-            decode_idx[idx] = pointer.detach().view(batch_size)
+        decode_probs[-1] = last_values[:, :, STOP_TAG]
 
-        for idx in range(1, len(decode_idx)):
-            forward_values = values_history[idx]
-            prob_list = []
+        for idx in range(len(back_points) - 2, -1, -1):
+            back_values = values_history[idx]
+            batch_probs = []
             for batch_idx in range(batch_size):
-                sing_prob = (forward_values[batch_idx, :, decode_idx[idx-1, batch_idx]])
-                prob_list.append(sing_prob)
-            batch_probs = torch.cat(prob_list).contiguous().view(batch_size, tag_size)
-            a, b = torch.max(batch_probs, 1)
-            decode_probs.append(batch_probs)
-            temp = torch.all(torch.eq(b, decode_idx[idx]))
+                batch_probs.append(back_values[batch_idx, :, pointer[batch_idx]])
+            batch_probs = torch.cat(batch_probs).contiguous().view(batch_size, tag_size)
+            _, pointer_prob = batch_probs.max(1)
+            pointer = torch.gather(back_points[idx], 1, pointer.contiguous().view(batch_size, 1))
+            pointer = pointer.view(batch_size)
+            decode_idx[idx] = pointer.detach()
+            decode_probs.append(batch_probs.detach())
+
+        decode_probs = decode_probs.reverse()
+        probs = decode_probs[13]
+        tag_seq = decode_idx[13]
+        a, b = probs.max(1)
 
         path_score = None
-        #get marginal probs forward
-        decode_probs = torch.cat(decode_probs).contiguous().view(-1, batch_size, tag_size)
-        decode_probs = decode_probs.transpose(1, 0)
+        for idx in range(len(decode_probs)):
+            probs = decode_probs[idx]
+            a, b = probs.max(1)
+            c = decode_idx[idx]
+
         decode_idx = decode_idx.transpose(1, 0)
         return path_score, decode_idx, decode_probs
 
