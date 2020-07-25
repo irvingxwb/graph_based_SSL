@@ -401,7 +401,6 @@ class NCRFpp:
         # read config from file
         self.data.read_config('decode_config.yaml')
         logger.info("model: decode")
-        logger.info("data raw dir: ", str(self.data.raw_dir))
         self.data.generate_instance('raw'),
 
         self.model = SeqLabel(self.data)
@@ -433,16 +432,16 @@ class NCRFpp:
             batch_label, mask = batchify_with_label(instance, self.data.HP_gpu, False)
 
             temp_seq, temp_probs = self.model(batch_word, batch_features, batch_wordlen, batch_char, batch_charlen,
-                                           batch_charrecover, mask,
-                                           prob=True)
+                                           batch_charrecover, mask, prob=True)
             # logger.info("tag:",tag_seq)
-            pred_label, gold_label = recover_label(tag_seq, batch_label, mask, self.data.label_alphabet, batch_wordrecover)
+            pred_label, gold_label = recover_label(temp_seq, batch_label, mask, self.data.label_alphabet, batch_wordrecover)
             pred_results += pred_label
             gold_results += gold_label
             tag_seq += temp_seq
             tag_seq_probs += temp_probs
 
-        acc, p, r, f = get_ner_fmeasure(gold_results, pred_results, data.tagScheme)
+        logger.debug("crf decode tag scheme %s" % self.data.tagScheme)
+        acc, p, r, f = get_ner_fmeasure(gold_results, pred_results, self.data.tagScheme)
 
         return tag_seq, tag_seq_probs, acc
 
@@ -495,14 +494,3 @@ if __name__ == '__main__':
         data.generate_instance('test')
         data.build_pretrain_emb()
         train(data)
-    elif data.status == 'decode':
-        logger.info("model: decode")
-        data.load(data.dset_dir)
-        logger.info(data.raw_dir)
-        data.generate_instance('raw')
-        logger.info("nbest: %s" % (data.nbest))
-        decode_results, pred_scores = load_model_decode(data, 'raw')
-        if data.nbest:
-            data.write_nbest_decoded_results(decode_results, pred_scores, 'raw')
-        else:
-            data.write_decoded_results(decode_results, 'raw')

@@ -15,18 +15,19 @@ class Graph:
     data_set = None
 
     # pmi
+    ngram_dict = {}
     feature_dict = {}
+
     ngrams_counter = None
     feature_counters = None
     ngrams_feature_counters = None
     ngrams_feature_map = None
 
-    sum_features = 0
-    sum_ngrams = 0
+    ngram_count = 0
+    feature_count = 0
     pmi_vectors = None
 
     # graph
-    ngrams = None
     graph_map = None
     ngram_prob_map = None
 
@@ -34,14 +35,11 @@ class Graph:
     def __init__(self, data_set):
         self.data_set = data_set
         self.build_feature_dicts()
-
-        self.ngrams = self.ngrams_feature_map.keys()
         self.graph_map = dict.fromkeys(self.ngrams_feature_map.keys())
-        self.length = len(self.ngrams)
         # compute k nearest map
 
     def __len__(self):
-        return self.length
+        return len(self.graph_map)
 
     def build_feature_dicts(self):
         # self.features = set()
@@ -60,10 +58,12 @@ class Graph:
         self.ngrams_feature_map = {}
 
         # gather all features by its name
-        feature_count = 0
+        self.feature_count = 0
+        self.ngram_count = 0
         for ngram, features in zip(ngrams_list, features_list):
             if ngram not in self.ngrams_feature_map:
-                self.ngrams_feature_map[ngram] = [features]
+                self.ngrams_feature_map[ngram] = list()
+                self.ngrams_feature_map[ngram].append(features)
             else:
                 self.ngrams_feature_map[ngram].append(features)
 
@@ -72,45 +72,36 @@ class Graph:
                 ngrams_feature_agg.append((ngram, feature))
 
                 if feature not in self.feature_dict:
-                    self.feature_dict[feature] = feature_count
-                    feature_count += 1
+                    self.feature_dict[feature] = self.feature_count
+                    self.feature_count += 1
 
-        self.feature_counters = Counter(feature)
-        self.ngrams_feature_counters = Counter(self.ngram_feature)
+            if ngram not in self.ngram_dict:
+                self.ngram_dict[ngram] = self.ngram_count
+                self.ngram_count += 1
 
-        # self.features = list(self.features)
-        self.sum_features = len(self.feature_dict)
-        self.sum_ngrams = len(self.ngrams_feature_map)
+        self.feature_counters = Counter(feature_agg)
+        self.ngrams_feature_counters = Counter(ngrams_feature_agg)
 
-        logger.debug("PMI: complete pmi with: %s %s" % str(self.sum_ngrams), str(self.sum_features))
+        logger.debug("complete graph init with: %s %s" % (str(self.ngram_count), str(self.feature_count)))
 
     def build_pmi_vectors(self):
-        ngram_idx = 0
-        # self.pmi_vectors = lil_matrix((self.sum_ngrams, self.sum_features))
-        # for ngram, features in self.ngrams_feature_map.items():
-        #     for feature in features:
-        #         for name, item in feature.items():
-        #             item_idx = self.feature_dict[item]
-        #             self.pmi_vectors[ngram_idx, item_idx] = self.pmi_score(ngram, item, name)
-        #
-        #     ngram_idx += 1
 
-        self.pmi_vectors = torch.zeros(self.sum_ngrams, self.sum_features, dtype=torch.float)
-        for ngram, features in self.ngrams_feature_map.items():
-            for feature in features:
-                for name, item in feature.items():
-                    item_idx = self.feature_dict[item]
-                    self.pmi_vectors[ngram_idx, item_idx] = self.pmi_score(ngram, item, name)
+        self.pmi_vectors = torch.zeros(self.ngram_count, self.feature_count, dtype=torch.float)
+        for n_idx, ngram in enumerate(self.ngram_dict):
+            for features in self.ngrams_feature_map[ngram]:
+                for feature_name, feature in features.items():
+                    f_idx = self.feature_dict[feature]
+                    self.pmi_vectors[n_idx, f_idx] = self.pmi_score(ngram, feature)
 
-            ngram_idx += 1
+        logger.debug("complete pmi vectors compute")
 
-    def pmi_score(self, ngram, feature, feature_name):
+    def pmi_score(self, ngram, feature):
 
-        count_ngram_feature = self.ngrams_feature_counters[feature_name][(ngram, feature)]
+        count_ngram_feature = self.ngrams_feature_counters[(ngram, feature)]
         count_ngram = self.ngrams_counter[ngram]
-        count_feature = self.feature_counters[feature_name][feature]
+        count_feature = self.feature_counters[feature]
 
-        score = np.log((count_ngram_feature * self.sum_ngrams) / (count_ngram * count_feature))
+        score = np.log((count_ngram_feature * self.ngram_count) / (count_ngram * count_feature))
 
         return score
 
@@ -173,4 +164,16 @@ class Graph:
             count += 1
             if count > print_num:
                 break
+
+    def get_flat_ngramfeature_lists(self):
+        n_list = []
+        f_list = []
+
+        self.pmi_vectors = torch.zeros(self.ngram_count, self.feature_count, dtype=torch.float)
+        for n_idx, ngram in enumerate(self.ngram_dict):
+            n_list.append(ngram)
+        for f_idx, feature in enumerate(self.feature_dict):
+            f_list.append(feature)
+
+        return n_list, f_list
 

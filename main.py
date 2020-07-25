@@ -1,11 +1,9 @@
 from graph.functions import *
 from graph.graph import *
-from graph.pmi import *
 import argparse
 import torch
 from gensim.models import Word2Vec
 from gensim.models import KeyedVectors
-import crf.crf_main as crf
 from crf.crf_main import NCRFpp
 
 import timeit
@@ -27,8 +25,8 @@ def normalize_word(word):
 
 
 def logging_star():
-    logger.info('**' * 20)
-    logger.info('**' * 20)
+    logger.info('**' * 40)
+    logger.info('**' * 40)
 
 
 class Dataset:
@@ -123,26 +121,25 @@ if __name__ == '__main__':
     data_set.load_all_data()
     logger.debug("length of label_data: " + str(len(data_set.labeled_train_text)))
 
-    # crf = NCRFpp()
-    # crf.build_alphabet()
-    # predict_tag, predict_probs, acc = crf.decode_marginals()
-
     # # build word embeddings
     # data_set.build_word_emb()
     # logger.debug("finish build word embeddings")
 
     # initialize graph
     graph = Graph(data_set)
-    graph.build_feature_dicts()
     graph.build_pmi_vectors()
-
     logger.debug("finish Construct Graph")
 
     # posterior decoding
     logging_star()
 
-    # marginal_prob = crf.get_marginals()
-    # logger.debug("finish crf train")
+    crf = NCRFpp()
+    crf.build_alphabet()
+    predict_tag, predict_probs, acc = crf.decode_marginals()
+    for tag, prob in zip(predict_tag, predict_probs):
+        a, b = prob.max(dim=1)
+    logger.debug("decode accuracy %s" % str(acc))
+    logger.debug("finish crf train")
 
     #
     # # token to type map
