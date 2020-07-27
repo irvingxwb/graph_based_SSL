@@ -309,9 +309,9 @@ class CRF(nn.Module):
         decode_probs = list()
         if self.gpu:
             decode_idx = decode_idx.cuda()
-            decode_probs = decode_probs.cuda()
+            # decode_probs = decode_probs.cuda()
         decode_idx[-1] = pointer.detach()
-        decode_probs[-1] = last_values[:, :, STOP_TAG]
+        decode_probs.append(last_values[:, :, STOP_TAG])
 
         for idx in range(len(back_points) - 2, -1, -1):
             back_values = values_history[idx]
@@ -325,18 +325,14 @@ class CRF(nn.Module):
             decode_idx[idx] = pointer.detach()
             decode_probs.append(batch_probs.detach())
 
-        decode_probs = decode_probs.reverse()
-        probs = decode_probs[13]
-        tag_seq = decode_idx[13]
-        a, b = probs.max(1)
+        decode_probs.reverse()
+        decode_probs = torch.cat(decode_probs).view(-1, batch_size, tag_size)
+        a, b = decode_probs.max(2)
 
         path_score = None
-        for idx in range(len(decode_probs)):
-            probs = decode_probs[idx]
-            a, b = probs.max(1)
-            c = decode_idx[idx]
 
         decode_idx = decode_idx.transpose(1, 0)
+        decode_probs = decode_probs.transpose(1, 0)
         return path_score, decode_idx, decode_probs
 
     def _score_sentence(self, scores, mask, tags):

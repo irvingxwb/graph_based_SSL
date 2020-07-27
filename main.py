@@ -42,7 +42,7 @@ class Dataset:
     all_data = None
 
     # hyper parameters
-    k_nearest = 3
+    k_nearest = 5
     unlabeled_num = 0
     gpu = False
 
@@ -128,25 +128,24 @@ if __name__ == '__main__':
     # initialize graph
     graph = Graph(data_set)
     graph.build_pmi_vectors()
+    graph.compute_graph()
     logger.debug("finish Construct Graph")
 
     # posterior decoding
     logging_star()
 
     crf = NCRFpp()
-    crf.build_alphabet()
-    predict_tag, predict_probs, acc = crf.decode_marginals()
-    for tag, prob in zip(predict_tag, predict_probs):
-        a, b = prob.max(dim=1)
-    logger.debug("decode accuracy %s" % str(acc))
+    crf.build_crf()
+    tag_seq, tag_probs, tag_mask = crf.decode_marginals("train")
+    instance_Ids = [instance[0] for instance in crf.data.train_Ids]
+    instance_words = [[crf.data.word_alphabet.get_instance(word) for word in sent] for sent in instance_Ids]
     logger.debug("finish crf train")
 
-    #
-    # # token to type map
-    # graph.agg_marginal_prob(marginal_prob, ngrams_list)
-    #
-    # # graph propogation
-    # graph.propogate_graph()
+    # token to type map
+    graph.token2type_map(tag_probs, tag_mask, instance_Ids)
+
+    # graph propogation
+    graph.propogate_graph()
 
     # Viterbi decoding
 

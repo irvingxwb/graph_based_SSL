@@ -149,3 +149,16 @@ def operate_dict(dict1, dict2=None, operator='div', para='1'):
         for key in dict1.keys():
             total += dict1[key]
         return total
+
+
+def get_ngrams(sent):
+    ngrams = list()
+    for idx in range(1, len(sent) - 1):
+        ngrams.append(sent[idx - 1:idx + 2])
+
+    return ngrams
+
+
+if __name__ == "__main__":
+    a = get_ngrams([1, 2])
+    print(a)
