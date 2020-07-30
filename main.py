@@ -156,7 +156,7 @@ if __name__ == '__main__':
     # initialize all class
     graph = Graph(data_set, crf=crf)
     graph.build_pmi_vectors()
-    graph.compute_graph()
+    graph.construct_graph()
     logger.debug("finish Construct Graph")
 
     # posterior decoding

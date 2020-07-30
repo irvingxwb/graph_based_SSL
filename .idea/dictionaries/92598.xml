@@ -3,6 +3,7 @@
     <words>
       <w>ngrams</w>
       <w>probs</w>
+      <w>viterbi</w>
     </words>
   </dictionary>
 </component>

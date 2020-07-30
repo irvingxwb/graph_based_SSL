@@ -32,6 +32,7 @@ class Graph:
 
     # graph
     graph_map = None
+    graph_weight_map = None
     ngram_prob_map = None
     new_prob_map = None
 
@@ -120,26 +121,43 @@ class Graph:
 
         return score
 
-    def compute_graph(self):
+    def construct_graph(self):
         k = self.data_set.k_nearest
-        # batch size to be 1000
-        matrix_length = 1000
-        total_length = len(self.ngram_dict)
 
+        # deprecated
+        # # batch size to be 1000
+        # matrix_length = 1000
+        # total_length = len(self.ngram_dict)
+
+        # for i in range(math.ceil(total_length / matrix_length)):
+        #     if (i + 1) * matrix_length < total_length:
+        #         v = self.pmi_vectors[i * matrix_length:(i + 1) * matrix_length, :]
+        #     else:
+        #         v = self.pmi_vectors[i * matrix_length:, :]
+        #     # compute distance
+        #     dist_vec = pairwise_distances(v, self.pmi_vectors, metric='cosine')
+        #     batch_nearest_set = dist_vec.argsort()[:, 1:k + 1]
+        #     nearest_set.extend(batch_nearest_set)
         nearest_set = []
-        for i in range(math.ceil(total_length / matrix_length)):
-            if (i + 1) * matrix_length < total_length:
-                v = self.pmi_vectors[i * matrix_length:(i + 1) * matrix_length, :]
-            else:
-                v = self.pmi_vectors[i * matrix_length:, :]
-            # compute distance
-            dist_vec = pairwise_distances(v, self.pmi_vectors, metric='cosine')
-            batch_nearest_set = dist_vec.argsort()[:, 1:k + 1]
-            nearest_set.extend(batch_nearest_set)
+
+        dist_vec = pairwise_distances(self.pmi_vectors, self.pmi_vectors, metric='cosine')
+        batch_nearest_set = dist_vec.argsort()[:, 1:k + 1]
+        nearest_set.extend(batch_nearest_set)
 
         assert len(nearest_set) == len(self.graph_map)
-        for idx in range(len(nearest_set)):
-            self.graph_map[idx] = nearest_set[idx]
+        # each node is a list of neighbour nodes
+        self.graph_map = nearest_set
+
+        # construct neighbour nodes' matching weight
+        self.graph_weight_map = self.graph_map
+        for u, u_neigh in enumerate(self.graph_map):
+            # check if u is in K(v) for each v in K(u)
+            u_weight = []
+            for v_idx, v in enumerate(u_neigh):
+                if u in self.graph_map[v]:
+                    pass
+                else:
+                    u_weight[v_idx]
 
         logger.debug("complete building graph")
 
@@ -219,11 +237,23 @@ class Graph:
         for ngram, label_cnt in count_r.items():
             all_cnt = sum([cnt for cnt in label_cnt.values()])
             r[ngram] = [(cnt / all_cnt) for label, cnt in label_cnt.items()]
+
         return r
+
+    # get sum of neighbour nodes:  sum(w_uv * q(v, m-1))
+    def neighbour_sum(self, ngram):
+        return
+
+    # get sum of neighbour nodes weights
+    def neighbour_weight_sum(self, ngram):
+        return
+
+    # check if ngram is labeled or not
+    def delta(self, ngram):
+        return self.isngram_labeled_dict[ngram]
 
     # do graph propogations
     def graph_props(self, tag_text, tag_seq, label_dict):
-        delta = self.delta
         # get empirical count for each label type
         count_r = self.ngramlist_and_sents2cr(tag_text, tag_seq, label_dict=label_dict)
         r = self.build_r(count_r)
@@ -238,56 +268,15 @@ class Graph:
 
         # delta = 1 is ngram is labeled
         for idx, ngram in self.ngram_prob_map:
-            gamma_u = delta(ngram) * r[ngram] + mu * self.neighbour_sum(ngram) + nu * u_y
-            kappa_u = delta(ngram) + nu + mu * self.neighbour_weight_sum(ngram)
+            gamma_u = self.delta(ngram) * r[ngram] + mu * self.neighbour_sum(ngram) + nu * u_y
+            kappa_u = self.delta(ngram) + nu + mu * self.neighbour_weight_sum(ngram)
             self.new_prob_map[ngram] = gamma_u / kappa_u
 
-    def graph_propagations(self, r, q_0, mu, nu, y_size, marginal_prob_type, count):
-        print(sum([v for v in q_0[10].values()]))
-        q = self.graph_propagation(r, q_0, mu, nu, y_size, marginal_prob_type)
-        print("1")
-        print(sum([v for v in q[10].values()]))
-        for i in range(count - 1):
-            q = self.graph_propagation(r, q, mu, nu, y_size, marginal_prob_type)
-            print(i + 2)
-            print(sum([v for v in q[10].values()]))
-        return q
+    def viterbi_decode(self):
+        return
 
-    def graph_propagation(self, r, q, mu, nu, y_size, marginal_prob_type):
-        q_next = []
-        for u_ind in range(self.l + self.u):
-            kappa = 0
-            gamma = copy.deepcopy(marginal_prob_type)
-            trigram = self.trigrams[u_ind]
-            for v_ind, w_uv in enumerate(self.w[u_ind]):
-                gamma = marginal_prob_add(gamma, marginal_prob_times(q[v_ind], w_uv))
-                kappa = + mu * w_uv
-            kappa += nu
-            if trigram in r:
-                delta = r[trigram]
-                kappa += 1
-            else:
-                delta = marginal_prob_type
-            gamma = marginal_prob_add(gamma, delta)
-            gamma = marginal_prob_scala_add(gamma, nu / y_size)
-            p_q = marginal_prob_division(gamma, kappa)
-            q_next.append(p_q)
-        return q_next
-
-    # helper functions
-    # test function for debug graph
-    def printGraph(self, print_num):
-        count = 0
-
-        for ngram, near in self.graph_map.items():
-            near_set = []
-            for index in near:
-                near_set.append(self.ngrams[index])
-
-            logger.debug(f'Graph: {ngram}\'s nearby: {"||".join(item for item in near_set)}')
-            count += 1
-            if count > print_num:
-                break
+    def generate_retrain_data(self):
+        return
 
     def get_flat_ngramfeature_lists(self):
         n_list = []
@@ -301,10 +290,4 @@ class Graph:
 
         return n_list, f_list
 
-    # get sum of neighbour nodes:  sum(w_uv * q(v, m-1))
-    def neighbour_sum(self, ngram):
-        return
 
-    # check if ngram is labeled or not
-    def delta(self, ngram):
-        return self.isngram_labeled_dict[ngram]
