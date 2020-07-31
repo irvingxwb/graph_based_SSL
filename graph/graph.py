@@ -10,8 +10,11 @@ logger = logging.getLogger("Graph")
 
 
 class Graph:
-    data_set = None
+    # data
     crf_data = None
+    labeled_train_text = None
+    unlabeled_train_text = None
+    test_text = None
 
     # pmi dictionaries
     labeled_ngram_dict = dict()
@@ -33,8 +36,8 @@ class Graph:
     # graph map is numpy nd array
     graph_map = None
     graph_weight_map = None
-    ngram_prob_map = None
-    new_prob_map = None
+    ngram_prob_map = dict()
+    new_prob_map = dict()
 
     # parameter
     labeled_num = 0
@@ -51,7 +54,7 @@ class Graph:
 
     def build_feature_dicts(self):
         # self.features = set()
-        labeled_ngrams_text, unlabeled_ngrams_text, _ = self.data_set.get_train_text()
+        self.labeled_train_text, self.unlabeled_train_text, _ = self.data_set.get_train_text()
 
         # agg
         ngram_agg = []
@@ -63,40 +66,53 @@ class Graph:
         self.ngram_count = 0
 
         # manipulate labeled data
-        for sent in labeled_ngrams_text + unlabeled_ngrams_text:
+        for sent in self.labeled_train_text:
             # get ngrams, features from sentence
             sent_ngrams = sent2trigrams(sent)
             sent_features = sent2graphfeatures(sent)
-
             # build maps and dicts
+            assert len(sent_ngrams) == len(sent_features)
             for ngram, features in zip(sent_ngrams, sent_features):
                 # manipulate labeled ngrams
-                if sent in labeled_ngrams_text:
-                    if ngram not in self.labeled_ngram_dict:
-                        self.labeled_ngram_dict[ngram] = self.ngram_count
-                        self.ngram_count += 1
-                        self.ngrams_features_dict[ngram] = [features]
-                        ngram_agg.append(ngram)
-                    else:
-                        self.ngrams_features_dict[ngram].append(features)
-                        ngram_agg.append(ngram)
-                # manipulate unlabeled ngrams
+                if ngram not in self.labeled_ngram_dict.keys():
+                    self.labeled_ngram_dict[ngram] = self.ngram_count
+                    self.ngram_count += 1
+                    self.ngrams_features_dict[ngram] = [features]
+                    ngram_agg.append(ngram)
                 else:
-                    if ngram not in self.labeled_ngram_dict:
-                        self.unlabeled_ngram_dict[ngram] = self.ngram_count
-                        self.ngram_count += 1
-                        self.ngrams_features_dict[ngram] = [features]
-                        ngram_agg.append(ngram)
-                    else:
-                        self.ngrams_features_fict[ngram].append(features)
-                        ngram_agg.append(ngram)
+                    self.ngrams_features_dict[ngram].append(features)
+                    ngram_agg.append(ngram)
 
                 # manipulate features
                 for _, feature in features.items():
                     if feature not in self.feature_dict:
                         self.feature_dict[feature] = self.feature_count
                         self.feature_count += 1
+                    feature_agg.append(feature)
+                    ngrams_feature_agg.append((ngram, feature))
 
+        # handle unlabeled data
+        for sent in self.unlabeled_train_text:
+            # get ngrams, features from sentence
+            sent_ngrams = sent2trigrams(sent)
+            sent_features = sent2graphfeatures(sent)
+            # build maps and dicts
+            for ngram, probs in zip(sent_ngrams, sent_features):
+                # manipulate labeled ngrams
+                if ngram not in self.labeled_ngram_dict.keys():
+                    self.unlabeled_ngram_dict[ngram] = self.ngram_count
+                    self.ngram_count += 1
+                    self.ngrams_features_dict[ngram] = [features]
+                    ngram_agg.append(ngram)
+                else:
+                    self.ngrams_features_dict[ngram].append(features)
+                    ngram_agg.append(ngram)
+
+                # manipulate features
+                for _, feature in features.items():
+                    if feature not in self.feature_dict:
+                        self.feature_dict[feature] = self.feature_count
+                        self.feature_count += 1
                     feature_agg.append(feature)
                     ngrams_feature_agg.append((ngram, feature))
 
@@ -136,7 +152,6 @@ class Graph:
         dist_vec = pairwise_distances(self.pmi_vectors, self.pmi_vectors, metric='cosine')
         nearest_set = dist_vec.argsort()[:, 1:k + 1]
 
-        assert len(nearest_set) == len(self.graph_map)
         logger.debug("finish computer distance matrix")
         # each node is a list of neighbour nodes
         self.graph_map = nearest_set
@@ -157,22 +172,33 @@ class Graph:
         logger.debug("complete building graph")
 
     # raw data with its crf probs
-    def token2type_map(self, probs, mask, sents):
-        logger.debug("token to type total sentences length %s" % str(len(sents)))
+    def token2type_map(self, probs, mask, flag):
+        logger.debug("token to type total sentences length %s" % flag)
 
         # init probs
-        self.ngram_prob_map = dict.fromkeys(self.ngram_dict.keys(), [])
+        sents = None
+        if flag == "train":
+            sents = self.labeled_train_text
+        elif flag == "text":
+            sents = self.test_text
 
-        for sent_probs, sent_mask, sent in zip(probs, mask, sents):
+        assert len(sents) == len(probs) == len(mask)
+        for sent, sent_probs, sent_mask in zip(sents, probs, mask):
             ngrams = sent2trigrams(sent)
-            sent_probs = sent_probs[0:len(sent_probs)]
+
             assert len(ngrams) == ((sent_mask != 0).sum())
-            # ngram is tuple so that it can be key of the dict
-            for ngram, probs in zip(ngrams, sent_probs):
-                if ngram not in self.ngram_prob_map:
+            # ngram is string of type [A B C] so that it can be key of the dict
+            for n_idx, ngram in enumerate(ngrams):
+                n_probs = sent_probs[n_idx]
+                if ngram not in self.ngram_dict:
                     print("key error for %s" % ngram)
+
+                # add n_probs
+                if ngram not in self.ngram_prob_map:
+                    self.ngram_prob_map[ngram] = list()
+                    self.ngram_prob_map[ngram].append(n_probs.view(1, 20))
                 else:
-                    self.ngram_prob_map[ngram].append(probs.view(1, 20))
+                    self.ngram_prob_map[ngram].append(n_probs.view(1, 20))
 
         # get average probs and normalize
         for idx, ngram in enumerate(self.ngram_prob_map):
@@ -183,6 +209,26 @@ class Graph:
                 probs_sum = torch.sum(probs_agg, dim=0)
                 probs_avg = probs_sum / probs_agg.shape[0]
                 self.ngram_prob_map[ngram] = probs_avg
+
+    # do graph propogations
+    def graph_props(self, tag_text, tag_seq, label_dict):
+        # get empirical count for each label type
+        count_r = self.ngramlist_and_sents2cr(tag_text, tag_seq, label_dict=label_dict)
+        r = self.build_r(count_r)
+        mu = 0.5
+        nu = 0.1
+        self.new_prob_map = dict.fromkeys(self.ngram_dict.keys())
+        # start propogate graph
+        # probs = gamma(u) / kappa(u)\
+
+        # calculate parameters
+        u_y = 1 / len(label_dict)
+
+        # delta = 1 is ngram is labeled
+        for idx, ngram in self.ngram_prob_map:
+            gamma_u = self.delta(ngram) * r[ngram] + mu * self.neighbour_sum(ngram) + nu * u_y
+            kappa_u = self.delta(ngram) + nu + mu * self.neighbour_weight_sum(ngram)
+            self.new_prob_map[ngram] = gamma_u / kappa_u
 
     @staticmethod
     def ngramlist_and_sents2cr(tag_text, tag_seq, label_dict):
@@ -226,26 +272,6 @@ class Graph:
             return 0
         else:
             KeyError("ngram not in either labeled or unlabeled dict: %s" % ngram)
-
-    # do graph propogations
-    def graph_props(self, tag_text, tag_seq, label_dict):
-        # get empirical count for each label type
-        count_r = self.ngramlist_and_sents2cr(tag_text, tag_seq, label_dict=label_dict)
-        r = self.build_r(count_r)
-        mu = 0.5
-        nu = 0.1
-        self.new_prob_map = dict.fromkeys(self.ngram_dict.keys())
-        # start propogate graph
-        # probs = gamma(u) / kappa(u)\
-
-        # calculate parameters
-        u_y = 1 / len(label_dict)
-
-        # delta = 1 is ngram is labeled
-        for idx, ngram in self.ngram_prob_map:
-            gamma_u = self.delta(ngram) * r[ngram] + mu * self.neighbour_sum(ngram) + nu * u_y
-            kappa_u = self.delta(ngram) + nu + mu * self.neighbour_weight_sum(ngram)
-            self.new_prob_map[ngram] = gamma_u / kappa_u
 
     def viterbi_decode(self):
         return

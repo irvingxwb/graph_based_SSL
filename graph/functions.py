@@ -43,11 +43,14 @@ def word2graphfeatures(sent, i):
 
 
 def sent2graphfeatures(sent):
-    sent = ['<BOS>'] + sent + ['<EOS>']
+    # add start padding and end padding
+    # ngrams start from [BOS _ _] and end with [_ _ EOS] to use every marginal probs
+    # so features need two more padding
+    sent = ['<PAD_S>', '<BOS>'] + sent + ['<EOS>', '<PAD_E>']
 
     graph_features = []
-    for i in range(len(sent) - 4):
-        feature = word2graphfeatures(sent, i + 2)
+    for i in range(2, len(sent) - 2):
+        feature = word2graphfeatures(sent, i)
         graph_features.append(feature)
 
     return graph_features
@@ -135,16 +138,3 @@ def operate_dict(dict1, dict2=None, operator='div', para='1'):
         for key in dict1.keys():
             total += dict1[key]
         return total
-
-
-def get_ngrams(sent):
-    ngrams = list()
-    for idx in range(1, len(sent) - 1):
-        ngrams.append(' '.join(sent[idx - 1:idx + 2]))
-
-    return ngrams
-
-
-if __name__ == "__main__":
-    a = get_ngrams([1, 2])
-    print(a)

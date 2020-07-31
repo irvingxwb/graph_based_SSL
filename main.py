@@ -160,7 +160,7 @@ if __name__ == '__main__':
     logger.debug("finish crf train")
 
     # token to type map
-    graph.token2type_map(tag_probs, tag_mask, data_set.labeled_train_text)
+    graph.token2type_map(tag_probs, tag_mask, flag="train")
 
     # graph propogations
     graph.graph_props(data_set.labeled_train_text, tag_seq, crf.data.label_alphabet.instance2index)
