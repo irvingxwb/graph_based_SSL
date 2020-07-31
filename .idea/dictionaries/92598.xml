@@ -3,6 +3,9 @@
     <words>
       <w>ngrams</w>
       <w>probs</w>
+      <w>propogate</w>
+      <w>propogations</w>
+      <w>sents</w>
       <w>viterbi</w>
     </words>
   </dictionary>

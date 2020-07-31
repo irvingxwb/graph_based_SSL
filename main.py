@@ -62,11 +62,13 @@ def normal_probs(probs):
             # normalize tensor to [-1, 1]
             interval = torch.max(type_prob) - torch.min(type_prob)
             type_prob = type_prob / interval
-            # get probabilities using softmax
-            new_sent_probs.append(torch.nn.Softmax(type_prob))
+            # get probabilities using Softmax
+            type_prob = torch.nn.Softmax(type_prob).dim
+            new_sent_probs.append(type_prob)
 
         new_probs.append(new_sent_probs)
 
+    logger.debug("normalized probabilities")
     return new_probs
 
 
@@ -79,6 +81,7 @@ class Dataset:
     # data
     labeled_train_text = None
     labeled_train_label = None
+    unlabeled_train_text = None
     train_data = None
     all_data = None
     crf_data = None
@@ -98,6 +101,7 @@ class Dataset:
             self.labeled_train_text, self.labeled_train_label = preprocess_data(raw_data)
 
         self.all_data = self.labeled_train_text
+        self.unlabeled_train_text = []
 
         # if self.unlabeled_train_dir:
         #     with open(self.unlabeled_train_dir) as f:
@@ -112,21 +116,11 @@ class Dataset:
 
         return features_list
 
-    def get_ngrams_list(self):
-        labeled_ngrams_list = []
-        for sent in self.labeled_train_text:
-            # add BOS and EOS tag to sents
-            ngrams = sent2trigrams(sent)
-            labeled_ngrams_list.extend(ngrams)
-
-        unlabeled_ngram_list = []
-        return labeled_ngrams_list, unlabeled_ngram_list
-
-    def get_train_set(self, flag='POS'):
-        return self.labeled_train_text, self.labeled_train_label
+    def get_train_text(self, flag='POS'):
+        return self.labeled_train_text, self.unlabeled_train_text, self.labeled_train_label
 
     def build_word_emb(self):
-        sentences, _ = self.get_train_set()
+        sentences, _, _ = self.get_train_text()
 
         model = Word2Vec(sentences, size=50)
         word_vector = model.wv
@@ -157,20 +151,19 @@ if __name__ == '__main__':
     graph = Graph(data_set, crf=crf)
     graph.build_pmi_vectors()
     graph.construct_graph()
-    logger.debug("finish Construct Graph")
 
     # posterior decoding
     tag_seq, tag_probs, tag_mask = crf.decode_marginals("train")
     tag_probs = normal_probs(tag_probs)
-    instance_Ids = [instance[0] for instance in crf.data.train_Ids]
-    instance_words = [[crf.data.word_alphabet.get_instance(word) for word in sent] for sent in instance_Ids]
+    # instance_Ids = [instance[0] for instance in crf.data.train_Ids]
+    # instance_words = [[crf.data.word_alphabet.get_instance(word) for word in sent] for sent in instance_Ids]
     logger.debug("finish crf train")
 
     # token to type map
-    graph.token2type_map(tag_probs, tag_mask, instance_words)
+    graph.token2type_map(tag_probs, tag_mask, data_set.labeled_train_text)
 
     # graph propogations
-    graph.graph_props(instance_words, tag_seq, crf.data.label_alphabet.instance2index)
+    graph.graph_props(data_set.labeled_train_text, tag_seq, crf.data.label_alphabet.instance2index)
 
     # Viterbi decoding
 
