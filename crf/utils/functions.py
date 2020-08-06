@@ -10,6 +10,7 @@ import logging
 
 logger = logging.getLogger("functions")
 
+
 def normalize_word(word):
     new_word = ""
     for char in word:

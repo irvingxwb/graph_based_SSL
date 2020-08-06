@@ -83,6 +83,29 @@ def recover_label(pred_variable, gold_variable, mask_variable, label_alphabet, w
     return pred_label, gold_label
 
 
+def recover_label_probs(tag_seq, tag_probs, mask_variable, word_recover):
+    tag_seq = tag_seq[word_recover]
+    tag_probs = tag_probs[word_recover]
+    mask_variable = mask_variable[word_recover]
+    #
+    # seq_len = tag_seq.size(1)
+    # mask = mask_variable.cpu().data.numpy()
+    # tag_seq = tag_seq.cpu().data.numpy()
+    #
+    # batch_size = mask.shape[0]
+    # tag_seq_list = []
+    # tag_probs_list = []
+    #
+    # for idx in range(batch_size):
+    #     seq = [tag_seq[idx, idy] for idy in range(seq_len) if mask[idx][idy] != 0]
+    #     probs = [tag_probs[idx, idy] for idy in range(seq_len) if mask[idx][idy] != 0]
+    #     assert (len(seq) == len(probs))
+    #     tag_seq_list.append(seq)
+    #     tag_probs_list.append(probs)
+
+    return tag_seq, tag_probs, mask_variable
+
+
 def recover_nbest_label(pred_variable, mask_variable, label_alphabet, word_recover):
     """
         input:
@@ -380,40 +403,48 @@ class NCRFpp:
 
     decode_name = 'raw'
 
-    def __init__(self, config="train_config.yaml"):
+    def __init__(self, data_set, config="train_config.yaml"):
         self.data.read_config(config)
         self.data.HP_gpu = torch.cuda.is_available()
         self.data.HP_l2 = float(self.data.HP_l2)
         logger.info("GPU available: " + str(self.data.HP_gpu))
 
-    def build_alphabet(self):
+    def build_crf(self):
         logger.info("MODEL: train")
         data_initialization(self.data)
-
-    def train_crf(self):
         self.data.generate_instance('train')
         self.data.generate_instance('dev')
         self.data.generate_instance('test')
+        # self.data.generate_instance('train')
+        # self.data.generate_instance('dev')
+        # self.data.generate_instance('test')
         self.data.build_pretrain_emb()
+
+    def train_crf(self):
         train(self.data)
 
-    def decode_marginals(self):
+    def decode_marginals(self, name):
         # read config from file
         self.data.read_config('decode_config.yaml')
         logger.info("model: decode")
-        logger.info("data raw dir: ", str(self.data.raw_dir))
-        self.data.generate_instance('raw'),
+        self.data.generate_instance('raw')
 
         self.model = SeqLabel(self.data)
         self.model.load_state_dict(torch.load(self.data.load_model_dir))
 
-        instances = self.data.raw_Ids
+        if name == "raw":
+            instances = self.data.raw_Ids
+        elif name == "train":
+            instances = self.data.train_Ids
+        elif name == "test":
+            instances = self.data.test_Ids
 
         pred_scores = []
         pred_results = []
         gold_results = []
         tag_seq = []
         tag_seq_probs = []
+        tag_seq_mask = []
         ## set model in eval model
         self.model.eval()
         batch_size = self.data.HP_batch_size
@@ -433,18 +464,24 @@ class NCRFpp:
             batch_label, mask = batchify_with_label(instance, self.data.HP_gpu, False)
 
             temp_seq, temp_probs = self.model(batch_word, batch_features, batch_wordlen, batch_char, batch_charlen,
-                                           batch_charrecover, mask,
-                                           prob=True)
+                                           batch_charrecover, mask, prob=True)
+
             # logger.info("tag:",tag_seq)
-            pred_label, gold_label = recover_label(tag_seq, batch_label, mask, self.data.label_alphabet, batch_wordrecover)
+            pred_label, gold_label = recover_label(temp_seq, batch_label, mask, self.data.label_alphabet, batch_wordrecover)
             pred_results += pred_label
             gold_results += gold_label
-            tag_seq += temp_seq
-            tag_seq_probs += temp_probs
 
-        acc, p, r, f = get_ner_fmeasure(gold_results, pred_results, data.tagScheme)
+            # build return values
+            batch_seq, batch_probs, batch_mask = recover_label_probs(temp_seq, temp_probs, mask, batch_wordrecover)
+            tag_seq += batch_seq
+            tag_seq_probs += batch_probs
+            tag_seq_mask += batch_mask
 
-        return tag_seq, tag_seq_probs, acc
+        logger.debug("crf decode tag scheme %s" % self.data.tagScheme)
+        acc, p, r, f = get_ner_fmeasure(gold_results, pred_results, self.data.tagScheme)
+        logger.debug("crf training accuracy: %s" % str(acc))
+
+        return tag_seq, tag_seq_probs, tag_seq_mask
 
     def decode_sequence(self):
         logger.info("model: decode")
@@ -495,14 +532,3 @@ if __name__ == '__main__':
         data.generate_instance('test')
         data.build_pretrain_emb()
         train(data)
-    elif data.status == 'decode':
-        logger.info("model: decode")
-        data.load(data.dset_dir)
-        logger.info(data.raw_dir)
-        data.generate_instance('raw')
-        logger.info("nbest: %s" % (data.nbest))
-        decode_results, pred_scores = load_model_decode(data, 'raw')
-        if data.nbest:
-            data.write_nbest_decoded_results(decode_results, pred_scores, 'raw')
-        else:
-            data.write_decoded_results(decode_results, 'raw')

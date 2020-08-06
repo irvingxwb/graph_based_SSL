@@ -1,4 +1,5 @@
 import logging
+from crf.utils.functions import normalize_word
 
 logger = logging.getLogger('Helper')
 
@@ -42,21 +43,25 @@ def word2graphfeatures(sent, i):
 
 
 def sent2graphfeatures(sent):
-    sent = ['<BOS>'] + sent + ['<EOS>']
+    # add start padding and end padding
+    # ngrams start from [BOS _ _] and end with [_ _ EOS] to use every marginal probs
+    # so features need two more padding
+    sent = ['<PAD_S>', '<BOS>'] + sent + ['<EOS>', '<PAD_E>']
 
     graph_features = []
-    for i in range(len(sent) - 4):
-        feature = word2graphfeatures(sent, i + 2)
-        graph_features.append((feature))
+    for i in range(2, len(sent) - 2):
+        feature = word2graphfeatures(sent, i)
+        graph_features.append(feature)
 
     return graph_features
 
 
 def sent2trigrams(sent):
     trigrams = []
+    sent = ['<BOS>'] + sent + ['<EOS>']
     for i in range(len(sent) - 2):
         trigram = [word for word in (sent[i:i + 3])]
-        trigrams.append(' '.join(trigram))
+        trigrams.append(normalize_word(' '.join(trigram)))
 
     return trigrams
 
@@ -117,22 +122,6 @@ def sent2targets(sent):
 
 def sent2tokens(sent):
     return [token for token, postag, chunk, label in sent]
-
-
-def string2number(str):
-    ret = 0
-    para = 1
-
-    if str is True:
-        return 0
-    elif str is False:
-        return -1
-    else:
-        for c in str:
-            ret += para * ord(c)
-            para += 1
-
-        return ret
 
 
 def operate_dict(dict1, dict2=None, operator='div', para='1'):

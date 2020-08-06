@@ -171,11 +171,6 @@ class CRF(nn.Module):
             ## forscores, cur_bp = torch.max(cur_values[:,:-2,:], 1) # do not consider START_TAG/STOP_TAG
             # print "cur value:", cur_values.size()
             partition, cur_bp = torch.max(cur_values, 1)
-            # print "partsize:",partition.size()
-            # exit(0)
-            # print partition
-            # print cur_bp
-            # print "one best, ",idx
             partition_history.append(partition)
             ## cur_bp: (batch_size, tag_size) max source score position in current tag
             ## set padded label as 0, which will be filtered in post processing
@@ -183,7 +178,7 @@ class CRF(nn.Module):
             back_points.append(cur_bp)
         # exit(0)
         ### add score to final STOP_TAG
-        partition_history = torch.cat(partition_history, 0).view(seq_len, batch_size, -1).transpose(1,0).contiguous()  ## (batch_size, seq_len. tag_size)
+        partition_history = torch.cat(partition_history, 0).view(seq_len, batch_size, -1).transpose(1, 0).contiguous()  ## (batch_size, seq_len. tag_size)
         ### get the last position for each setences, and select the last partitions using gather()
         last_position = length_mask.view(batch_size, 1, 1).expand(batch_size, 1, tag_size) - 1
         last_partition = torch.gather(partition_history, 1, last_position).view(batch_size, tag_size, 1)
@@ -250,6 +245,8 @@ class CRF(nn.Module):
         ## record the position of best score
         back_points = list()
         partition_history = list()
+        values_history = list()
+        decode_probs = list()
         ##  reverse mask (bug for mask = 1- mask, use this as alternative choice)
         # mask = 1 + (-1)*mask
         mask = (1 - mask.long()).byte()
@@ -266,18 +263,15 @@ class CRF(nn.Module):
             cur_values = cur_values + partition.contiguous().view(batch_size, tag_size, 1).expand(batch_size, tag_size,
                                                                                                   tag_size)
             ## forscores, cur_bp = torch.max(cur_values[:,:-2,:], 1) # do not consider START_TAG/STOP_TAG
-            # print "cur value:", cur_values.size()
+            # print "cur value:", cur_values.size()  (batch_size, tag_size, tag_size)
             partition, cur_bp = torch.max(cur_values, 1)
-            # print "partsize:",partition.size()
-            # exit(0)
-            # print partition
-            # print cur_bp
-            # print "one best, ",idx
             partition_history.append(partition)
             ## cur_bp: (batch_size, tag_size) max source score position in current tag
             ## set padded label as 0, which will be filtered in post processing
             cur_bp.masked_fill_(mask[idx].view(batch_size, 1).expand(batch_size, tag_size).type(torch.bool), 0)
             back_points.append(cur_bp)
+            values_history.append(cur_values)
+
         # exit(0)
         ### add score to final STOP_TAG
         partition_history = torch.cat(partition_history, 0).view(seq_len, batch_size, -1).transpose(1,0).contiguous()  ## (batch_size, seq_len. tag_size)
@@ -289,9 +283,13 @@ class CRF(nn.Module):
                                                                                                     tag_size).expand(
             batch_size, tag_size, tag_size)
         _, last_bp = torch.max(last_values, 1)
+
         pad_zero = autograd.Variable(torch.zeros(batch_size, tag_size)).long()
+        pad_zero_probs = autograd.Variable(torch.zeros(batch_size, tag_size, tag_size)).long()
         if self.gpu:
             pad_zero = pad_zero.cuda()
+            pad_zero_probs = pad_zero_probs.cuda()
+
         back_points.append(pad_zero)
         back_points = torch.cat(back_points).view(seq_len, batch_size, tag_size)
 
@@ -308,15 +306,33 @@ class CRF(nn.Module):
         back_points = back_points.transpose(1, 0).contiguous()
         ## decode from the end, padded position ids are 0, which will be filtered if following evaluation
         decode_idx = autograd.Variable(torch.LongTensor(seq_len, batch_size))
+        decode_probs = list()
         if self.gpu:
             decode_idx = decode_idx.cuda()
+            # decode_probs = decode_probs.cuda()
         decode_idx[-1] = pointer.detach()
+        decode_probs.append(last_values[:, :, STOP_TAG])
+
         for idx in range(len(back_points) - 2, -1, -1):
+            back_values = values_history[idx]
+            batch_probs = []
+            for batch_idx in range(batch_size):
+                batch_probs.append(back_values[batch_idx, :, pointer[batch_idx]])
+            batch_probs = torch.cat(batch_probs).contiguous().view(batch_size, tag_size)
+            _, pointer_prob = batch_probs.max(1)
             pointer = torch.gather(back_points[idx], 1, pointer.contiguous().view(batch_size, 1))
-            decode_idx[idx] = pointer.detach().view(batch_size)
+            pointer = pointer.view(batch_size)
+            decode_idx[idx] = pointer.detach()
+            decode_probs.append(batch_probs.detach())
+
+        decode_probs.reverse()
+        decode_probs = torch.cat(decode_probs).view(-1, batch_size, tag_size)
+
         path_score = None
+
         decode_idx = decode_idx.transpose(1, 0)
-        return path_score, decode_idx, partition_history
+        decode_probs = decode_probs.transpose(1, 0)
+        return path_score, decode_idx, decode_probs
 
     def _score_sentence(self, scores, mask, tags):
         """
