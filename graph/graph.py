@@ -227,33 +227,43 @@ class Graph:
         ngrams = self.tag_ngrams
         probs = self.tag_probs
         mask = self.tag_mask
+        origin_label_set = []
+        ngram_count = {}
         if flag == "train":
             sents = self.train_text
 
-        self.ngram_prob_map = dict.fromkeys(self.ngram_dict.keys(), list())
         assert len(ngrams) == len(probs) == len(mask)
         for sent_ngrams, sent_probs, sent_mask in zip(ngrams, probs, mask):
-
             assert len(sent_ngrams) == ((sent_mask != 0).sum())
-            # ngram is string of type [A B C] so that it can be key of the dict
             # num of ngrams is not the same as number of probs
             for n_idx, ngram in enumerate(sent_ngrams):
                 # add n_probs
                 n_probs = sent_probs[n_idx]
                 if ngram not in self.ngram_prob_map:
-                    print("key error for %s" % ngram)
+                    self.ngram_prob_map[ngram] = n_probs
+                    ngram_count[ngram] = 1
+                    # debug part
+                    _, idx = torch.max(n_probs.view(1, -1), 1)
+                    origin_label_set.append(idx.cpu().item())
                 else:
-                    self.ngram_prob_map[ngram].append(n_probs.view(1, 20))
+                    prev_prob = self.ngram_prob_map[ngram]
+                    curr_prob = (prev_prob * ngram_count[ngram] + n_probs) / (ngram_count[ngram] + 1)
+                    ngram_count[ngram] += 1
+                    self.ngram_prob_map[ngram] = curr_prob
+                    # debug part
+                    _, p_idx = torch.max(prev_prob.view(1, -1), 1)
+                    _, c_idx = torch.max(curr_prob.view(1, -1), 1)
+                    # logger.debug("merge probs index %d  %d" % (p_idx.item(), c_idx.item()))
+                    origin_label_set.append(c_idx.cpu().item())
 
-        # get average probs for those types with more than one probs
-        for idx, ngram in enumerate(self.ngram_prob_map):
-            if len(self.ngram_prob_map[ngram]) == 1:
-                pass
-            else:
-                probs_agg = torch.cat(self.ngram_prob_map[ngram], dim=0)
-                probs_sum = torch.sum(probs_agg, dim=0)
-                probs_avg = probs_sum / probs_agg.shape[0]
-                self.ngram_prob_map[ngram] = probs_avg
+        # test result
+        index_set = []
+        for ngram, prob in self.ngram_prob_map.items():
+            _, idx = torch.max(prob.view(1, -1), 1)
+            index_set.append(idx.cpu().item())
+
+        label_counter = Counter(index_set)
+        origin_counter = Counter(origin_label_set)
 
         logger.debug("finish token to type map")
 
@@ -290,6 +300,8 @@ class Graph:
                 b = self.new_prob_map[ngram]
                 _, a_idx = torch.max(a.view(1, -1), 1)
                 _, b_idx = torch.max(b.view(1, -1), 1)
+                a_idx = a_idx.cpu().item()
+                b_idx = b_idx.cpu().item()
                 if a_idx == b_idx:
                     match_cnt += 1
                     if a_idx != 2:
@@ -346,7 +358,7 @@ class Graph:
             sum_list.append((v_probs * v_weight).view(1, -1))
 
         sum_tensor = torch.cat(sum_list, dim=0)
-        return torch.sum(sum_tensor, dim=0).cpu()
+        return torch.sum(sum_tensor, dim=0).item()
 
     # get sum of neighbour nodes weights
     def neighbour_weight_sum(self, u):
@@ -366,13 +378,25 @@ class Graph:
     # decode all marginals back to pos tags
     # mix marginal = alpha * crf_marginal + (1-alpha) * prop_result
     def viterbi_decode(self):
+        logger.debug("start viterbi decode")
         alpha = 0.6
-        decode_tag = []
+        decode_seq = []
         assert len(self.train_text) == len(self.tag_probs)
         for sent, sent_probs in zip(self.train_text, self.tag_probs):
-            sent_tag = []
-            for ngram, prob in sent_probs:
-                pass
+            sent_seq = []
+            ngrams = sent2trigrams(sent)
+            for n_i, ngram in enumerate(ngrams):
+                prob = sent_probs[n_i]
+                graph_prob = self.ngram_prob_map[ngram]
+                mix_prob = alpha * prob + (1-alpha) * graph_prob
+                _, idx = torch.max(mix_prob.view(1, -1), 2)
+                sent_seq.append(idx)
+            decode_seq.append(sent_seq)
+
+        # testing if decode is the same shape as input
+        assert len(decode_seq) == len(self.tag_seq)
+        for decode_sent, mask_sent in zip(decode_seq, self.tag_mask):
+            assert len(decode_sent) == ((mask_sent != 0).sum())
 
     def generate_retrain_data(self):
         return

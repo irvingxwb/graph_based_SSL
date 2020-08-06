@@ -95,7 +95,6 @@ def load_crf_result(file_dir):
     return tag_seq, tag_probs, tag_mask
 
 
-
 class Dataset:
     # I/O
     word_emb_dir = None
@@ -127,10 +126,10 @@ class Dataset:
         self.all_data = self.labeled_train_text
         self.unlabeled_train_text = []
 
-        # if self.unlabeled_train_dir:
-        #     with open(self.unlabeled_train_dir) as f:
-        #         raw_data = f.readlines()
-        #     self.unlabeled_trai= preprocess_data(raw_data)
+        if self.unlabeled_train_dir:
+            with open(self.unlabeled_train_dir) as f:
+                raw_data = f.readlines()
+            self.unlabeled_train_text= preprocess_data(raw_data)
 
     def get_features_list(self):
         features_list = []
@@ -143,6 +142,7 @@ class Dataset:
     def get_train_text(self, flag='POS'):
         return self.labeled_train_text, self.unlabeled_train_text, self.labeled_train_label
 
+    # todo: produce word emb instead of using pre-trained
     def build_word_emb(self):
         sentences, _, _ = self.get_train_text()
 
@@ -154,7 +154,7 @@ class Dataset:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--labeled_train", default='./data/train.bmes')
-    parser.add_argument("--unlabeled_train", default=None)
+    parser.add_argument("--unlabeled_train", default='./data/train.bme')
     parser.add_argument("--graph_dir", default='./data/save/graph/')
     parser.add_argument("--crf_dir", default='./data/save/crf/')
     args = parser.parse_args()
@@ -187,7 +187,7 @@ if __name__ == '__main__':
     # initialize crf
     if not load_crf:
         # init crf, time consuming
-        crf = NCRFpp()
+        crf = NCRFpp(data_set)
         crf.build_crf()
         tag_seq, tag_probs, tag_mask = crf.decode_marginals("train")
         save_crf_result(tag_seq, tag_probs, tag_mask, args.crf_dir)

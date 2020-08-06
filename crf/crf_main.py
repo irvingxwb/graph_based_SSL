@@ -403,7 +403,7 @@ class NCRFpp:
 
     decode_name = 'raw'
 
-    def __init__(self, config="train_config.yaml"):
+    def __init__(self, data_set, config="train_config.yaml"):
         self.data.read_config(config)
         self.data.HP_gpu = torch.cuda.is_available()
         self.data.HP_l2 = float(self.data.HP_l2)
@@ -415,6 +415,9 @@ class NCRFpp:
         self.data.generate_instance('train')
         self.data.generate_instance('dev')
         self.data.generate_instance('test')
+        # self.data.generate_instance('train')
+        # self.data.generate_instance('dev')
+        # self.data.generate_instance('test')
         self.data.build_pretrain_emb()
 
     def train_crf(self):
