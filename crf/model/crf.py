@@ -327,7 +327,6 @@ class CRF(nn.Module):
 
         decode_probs.reverse()
         decode_probs = torch.cat(decode_probs).view(-1, batch_size, tag_size)
-        a, b = decode_probs.max(2)
 
         path_score = None
 

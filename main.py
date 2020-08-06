@@ -1,3 +1,4 @@
+from graph.io_helper import *
 from graph.functions import *
 from graph.graph import *
 import argparse
@@ -8,7 +9,7 @@ from crf.crf_main import NCRFpp
 from crf.utils.functions import normalize_word
 
 import timeit
-from sys import getsizeof, stdout
+from sys import stdout
 import logging
 
 # logging.basicConfig(level=logging.DEBUG, filename='./log/main.log', filemode='w', format='%(asctime)s:%(levelname)s:%(
@@ -72,6 +73,29 @@ def normal_probs(probs):
     return new_probs
 
 
+def test_decode_result(tag_seq, tag_probs, tag_mask):
+    assert len(tag_seq) == len(tag_probs)
+    for seq, probs in zip(tag_seq, tag_probs):
+        assert len(seq) == len(probs)
+        temp, idx = torch.max(probs, 1)
+        print(1)
+
+
+# function for save and load crf result
+def save_crf_result(tag_seq, tag_probs, tag_mask, file_dir):
+    save_tensor(tag_seq, "tag_seq", file_dir)
+    save_tensor(tag_probs, "tag_probs", file_dir)
+    save_tensor(tag_mask, "tag_mask", file_dir)
+
+
+def load_crf_result(file_dir):
+    tag_seq = load_tensor("tag_seq", file_dir)
+    tag_probs = load_tensor("tag_probs", file_dir)
+    tag_mask = load_tensor("tag_mask", file_dir)
+    return tag_seq, tag_probs, tag_mask
+
+
+
 class Dataset:
     # I/O
     word_emb_dir = None
@@ -131,7 +155,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--labeled_train", default='./data/train.bmes')
     parser.add_argument("--unlabeled_train", default=None)
+    parser.add_argument("--graph_dir", default='./data/save/graph/')
+    parser.add_argument("--crf_dir", default='./data/save/crf/')
     args = parser.parse_args()
+
+    # debug mode use all prestored data for debugging
+    load_graph = True
+    load_crf = True
 
     # add crf data structure to main data set
     data_set = Dataset()
@@ -143,32 +173,40 @@ if __name__ == '__main__':
     data_set.load_all_data()
     logger.debug("length of label_data: " + str(len(data_set.labeled_train_text)))
 
-    # init crf
-    crf = NCRFpp()
-    crf.build_crf()
+    # initialize graph
+    graph = Graph(data_set)
 
-    # initialize all class
-    graph = Graph(data_set, crf=crf)
-    graph.build_pmi_vectors()
-    graph.construct_graph()
+    if not load_graph:
+        graph.build_pmi_vectors()
+        graph.construct_graph()
+        graph.save(args.graph_dir, 'graph')
+    else:
+        graph.load(args.graph_dir, 'graph')
+        logger.debug("Load pre-computed graph from file")
 
-    # posterior decoding
-    tag_seq, tag_probs, tag_mask = crf.decode_marginals("train")
-    tag_probs = normal_probs(tag_probs)
-    # instance_Ids = [instance[0] for instance in crf.data.train_Ids]
-    # instance_words = [[crf.data.word_alphabet.get_instance(word) for word in sent] for sent in instance_Ids]
-    logger.debug("finish crf train")
+    # initialize crf
+    if not load_crf:
+        # init crf, time consuming
+        crf = NCRFpp()
+        crf.build_crf()
+        tag_seq, tag_probs, tag_mask = crf.decode_marginals("train")
+        save_crf_result(tag_seq, tag_probs, tag_mask, args.crf_dir)
+        logger.debug("finish crf train")
+    else:
+        tag_seq, tag_probs, tag_mask = load_crf_result(args.crf_dir)
+        graph.update_train_result(tag_seq, tag_probs, tag_mask)
+
+        logger.debug("load crf result from file")
+
+    graph.update_train_result(tag_seq, tag_probs, tag_mask)
 
     # token to type map
-    graph.token2type_map(tag_probs, tag_mask, flag="train")
+    graph.token2type_map(flag='train')
 
     # graph propogations
-    graph.graph_props(data_set.labeled_train_text, tag_seq, crf.data.label_alphabet.instance2index)
+    graph.graph_props(20, 10)
 
     # Viterbi decoding
+    graph.viterbi_decode()
 
-    # start = timeit.default_timer()
-    # graph.propogate_graph()
-    # end = timeit.default_timer()
-    # logger.debug("propograte graph: " + str(end - start))
-    print("program finished")
+    # Retrain crf
