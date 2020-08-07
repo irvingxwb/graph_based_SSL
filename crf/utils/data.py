@@ -207,10 +207,9 @@ class Data:
                     self.feature_emb_dirs[idx] = self.feat_config[self.feature_name[idx]]['emb_dir']
                     self.norm_feature_embs[idx] = self.feat_config[self.feature_name[idx]]['emb_norm']
 
-    def build_alphabet(self, input_file_list):
-        for input_file in input_file_list:
-            in_lines = open(input_file, 'r').readlines()
-            for line in in_lines:
+    def build_alphabet(self, input_data_list):
+        for input_data in input_data_list:
+            for line in input_data:
                 if len(line) > 2:
                     pairs = line.strip().split()
                     word = pairs[0]
@@ -234,21 +233,6 @@ class Data:
 
         for idx in range(self.feature_num):
             self.feature_alphabet_sizes[idx] = self.feature_alphabets[idx].size()
-
-        startS = False
-        startB = False
-        for label, _ in self.label_alphabet.iteritems():
-            if "S-" in label.upper():
-                startS = True
-            elif "B-" in label.upper():
-                startB = True
-        if startB:
-            if startS:
-                self.tagScheme = "BMES"
-            else:
-                self.tagScheme = "BIO"
-        else:
-            self.tagScheme = "POS"
 
     def fix_alphabet(self):
         self.word_alphabet.close()
