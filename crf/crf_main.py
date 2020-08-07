@@ -20,12 +20,6 @@ logging.basicConfig(level=logging.DEBUG, stream=stdout, format='%(asctime)s:%(le
 logger = logging.getLogger('main')
 
 
-def data_initialization(data):
-    # data.initial_feature_alphabets()
-    data.build_alphabet([data.train_dir, data.dev_dir, data.test_dir])
-    data.fix_alphabet()
-
-
 def lr_decay(optimizer, epoch, decay_rate, init_lr):
     lr = init_lr / (1 + decay_rate * epoch)
     logger.info(" Learning rate is set as: %s" % str(lr))
@@ -87,21 +81,6 @@ def recover_label_probs(tag_seq, tag_probs, mask_variable, word_recover):
     tag_seq = tag_seq[word_recover]
     tag_probs = tag_probs[word_recover]
     mask_variable = mask_variable[word_recover]
-    #
-    # seq_len = tag_seq.size(1)
-    # mask = mask_variable.cpu().data.numpy()
-    # tag_seq = tag_seq.cpu().data.numpy()
-    #
-    # batch_size = mask.shape[0]
-    # tag_seq_list = []
-    # tag_probs_list = []
-    #
-    # for idx in range(batch_size):
-    #     seq = [tag_seq[idx, idy] for idy in range(seq_len) if mask[idx][idy] != 0]
-    #     probs = [tag_probs[idx, idy] for idy in range(seq_len) if mask[idx][idy] != 0]
-    #     assert (len(seq) == len(probs))
-    #     tag_seq_list.append(seq)
-    #     tag_probs_list.append(probs)
 
     return tag_seq, tag_probs, mask_variable
 
@@ -409,9 +388,11 @@ class NCRFpp:
         self.data.HP_l2 = float(self.data.HP_l2)
         logger.info("GPU available: " + str(self.data.HP_gpu))
 
-    def build_crf(self):
+    def build_crf(self, data_set):
         logger.info("MODEL: train")
-        data_initialization(self.data)
+
+        self.data.build_alphabet([self.data.train_dir, self.data.dev_dir, self.data.test_dir])
+        self.data.fix_alphabet()
         self.data.generate_instance('train')
         self.data.generate_instance('dev')
         self.data.generate_instance('test')

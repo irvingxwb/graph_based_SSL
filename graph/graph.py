@@ -12,9 +12,7 @@ logger = logging.getLogger("Graph")
 
 class Graph:
     # data
-    train_text = None
-    labeled_train_text = None
-    unlabeled_train_text = None
+    data_set = None
 
     # train result
     tag_ngrams = None
@@ -90,10 +88,6 @@ class Graph:
         # assert tag_seq = max(tag_probs)
 
     def build_feature_dicts(self):
-        # self.features = set()
-        self.labeled_train_text, self.unlabeled_train_text, _ = self.data_set.get_train_text()
-        self.train_text = self.labeled_train_text
-
         # agg
         ngram_sents_set = []
         ngram_agg = []
@@ -105,7 +99,7 @@ class Graph:
         self.ngram_count = 0
 
         # manipulate labeled data
-        for sent in self.labeled_train_text:
+        for sent in self.data_set.labeled_train_text:
             # get ngrams, features from sentence
             sent_ngrams = sent2trigrams(sent)
             ngram_sents_set.append(sent_ngrams)
@@ -133,14 +127,14 @@ class Graph:
                     ngrams_feature_agg.append((ngram, feature))
 
         # handle unlabeled data
-        for sent in self.unlabeled_train_text:
+        for sent in self.data_set.unlabeled_train_text:
             # get ngrams, features from sentence
             sent_ngrams = sent2trigrams(sent)
             ngram_sents_set.append(sent_ngrams)
 
             sent_features = sent2graphfeatures(sent)
             # build maps and dicts
-            for ngram, probs in zip(sent_ngrams, sent_features):
+            for ngram, features in zip(sent_ngrams, sent_features):
                 # manipulate labeled ngrams
                 if ngram not in self.labeled_ngram_dict.keys():
                     self.unlabeled_ngram_dict[ngram] = self.ngram_count
@@ -229,8 +223,6 @@ class Graph:
         mask = self.tag_mask
         origin_label_set = []
         ngram_count = {}
-        if flag == "train":
-            sents = self.train_text
 
         assert len(ngrams) == len(probs) == len(mask)
         for sent_ngrams, sent_probs, sent_mask in zip(ngrams, probs, mask):

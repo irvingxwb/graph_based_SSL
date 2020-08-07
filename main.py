@@ -139,9 +139,6 @@ class Dataset:
 
         return features_list
 
-    def get_train_text(self, flag='POS'):
-        return self.labeled_train_text, self.unlabeled_train_text, self.labeled_train_label
-
     # todo: produce word emb instead of using pre-trained
     def build_word_emb(self):
         sentences, _, _ = self.get_train_text()
@@ -154,7 +151,7 @@ class Dataset:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--labeled_train", default='./data/train.bmes')
-    parser.add_argument("--unlabeled_train", default='./data/train.bme')
+    parser.add_argument("--unlabeled_train", default='./data/train.bmes')
     parser.add_argument("--graph_dir", default='./data/save/graph/')
     parser.add_argument("--crf_dir", default='./data/save/crf/')
     args = parser.parse_args()
