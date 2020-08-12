@@ -1,9 +1,0 @@
-### use # to comment out the configure item
-
-### I/O ###
-status: decode
-raw_dir: data/raw.bmes
-# nbest: 10
-decode_dir: data/raw.out
-dset_dir: data/lstmcrf.dset
-

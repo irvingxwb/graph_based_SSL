@@ -1,5 +1,6 @@
 from .functions import sent2trigrams, sent2graphfeatures
 from sklearn.metrics import pairwise_distances
+from scipy.sparse import lil_matrix
 from collections import Counter
 from graph.io_helper import *
 import numpy as np
@@ -36,8 +37,8 @@ class Graph:
     ngrams_features_dict = dict()
 
     # number of each component
-    ngram_count = 0
-    feature_count = 0
+    ngram_index = 0
+    feature_index = 0
     # index of pmi vectors is the same as ngram dict
     pmi_vectors = None
 
@@ -95,11 +96,11 @@ class Graph:
         ngrams_feature_agg = []
 
         # gather all features by its name
-        self.feature_count = 0
-        self.ngram_count = 0
+        self.feature_index = 0
+        self.ngram_index = 0
 
         # manipulate labeled data
-        for sent in self.data_set.labeled_train_text:
+        for sent in self.data_set.labeled_train_texts:
             # get ngrams, features from sentence
             sent_ngrams = sent2trigrams(sent)
             ngram_sents_set.append(sent_ngrams)
@@ -109,9 +110,9 @@ class Graph:
             assert len(sent_ngrams) == len(sent_features)
             for ngram, features in zip(sent_ngrams, sent_features):
                 # manipulate labeled ngrams
-                if ngram not in self.labeled_ngram_dict.keys():
-                    self.labeled_ngram_dict[ngram] = self.ngram_count
-                    self.ngram_count += 1
+                if ngram not in self.labeled_ngram_dict:
+                    self.labeled_ngram_dict[ngram] = self.ngram_index
+                    self.ngram_index += 1
                     self.ngrams_features_dict[ngram] = [features]
                     ngram_agg.append(ngram)
                 else:
@@ -121,13 +122,13 @@ class Graph:
                 # manipulate features
                 for _, feature in features.items():
                     if feature not in self.feature_dict:
-                        self.feature_dict[feature] = self.feature_count
-                        self.feature_count += 1
+                        self.feature_dict[feature] = self.feature_index
+                        self.feature_index += 1
                     feature_agg.append(feature)
                     ngrams_feature_agg.append((ngram, feature))
 
         # handle unlabeled data
-        for sent in self.data_set.unlabeled_train_text:
+        for sent in self.data_set.unlabeled_train_texts:
             # get ngrams, features from sentence
             sent_ngrams = sent2trigrams(sent)
             ngram_sents_set.append(sent_ngrams)
@@ -136,9 +137,9 @@ class Graph:
             # build maps and dicts
             for ngram, features in zip(sent_ngrams, sent_features):
                 # manipulate labeled ngrams
-                if ngram not in self.labeled_ngram_dict.keys():
-                    self.unlabeled_ngram_dict[ngram] = self.ngram_count
-                    self.ngram_count += 1
+                if (ngram not in self.labeled_ngram_dict) and (ngram not in self.unlabeled_ngram_dict):
+                    self.unlabeled_ngram_dict[ngram] = self.ngram_index
+                    self.ngram_index += 1
                     self.ngrams_features_dict[ngram] = [features]
                     ngram_agg.append(ngram)
                 else:
@@ -148,8 +149,8 @@ class Graph:
                 # manipulate features
                 for _, feature in features.items():
                     if feature not in self.feature_dict:
-                        self.feature_dict[feature] = self.feature_count
-                        self.feature_count += 1
+                        self.feature_dict[feature] = self.feature_index
+                        self.feature_index += 1
                     feature_agg.append(feature)
                     ngrams_feature_agg.append((ngram, feature))
 
@@ -165,10 +166,10 @@ class Graph:
         # build reverse ngram dict {idx : ngram}
         self.ngram_reverse_dict = {v: k for k, v in self.ngram_dict.items()}
 
-        logger.debug("complete graph init with: %s %s" % (str(self.ngram_count), str(self.feature_count)))
+        logger.debug("complete graph init with: %s %s" % (str(self.ngram_index), str(self.feature_index)))
 
     def build_pmi_vectors(self):
-        self.pmi_vectors = torch.zeros(self.ngram_count, self.feature_count, dtype=torch.float)
+        self.pmi_vectors = lil_matrix((self.ngram_index, self.feature_index), dtype=float)
         for n_idx, ngram in enumerate(self.ngram_dict):
             for features in self.ngrams_features_dict[ngram]:
                 for feature_name, feature in features.items():
@@ -183,7 +184,7 @@ class Graph:
         count_feature = self.feature_counters[feature]
         count_ngram_feature = self.ngrams_feature_counters[(ngram, feature)]
 
-        score = np.log((count_ngram_feature * self.ngram_count) / (count_ngram * count_feature))
+        score = np.log((count_ngram_feature * self.ngram_index) / (count_ngram * count_feature))
 
         return score
 
@@ -218,6 +219,7 @@ class Graph:
         logger.debug("token to type: flag %s" % flag)
 
         # init probs
+        #
         ngrams = self.tag_ngrams
         probs = self.tag_probs
         mask = self.tag_mask
@@ -260,8 +262,9 @@ class Graph:
         logger.debug("finish token to type map")
 
     # do graph propogations
-    def graph_props(self, label_count, iter_num):
+    def graph_props(self, iter_num):
         # get empirical count for each label type
+        label_count = 20
         logger.debug("start graph propogating with iteration number {iter_num} %d" % iter_num)
         count_r = self.ngramlist_and_sents2cr(label_count)
         r = self.build_r(count_r)
@@ -313,7 +316,7 @@ class Graph:
 
     # cr is a 2d torch tensor
     def ngramlist_and_sents2cr(self, label_count):
-        cr = torch.zeros(self.ngram_count, label_count)
+        cr = torch.zeros(self.ngram_index, label_count)
         tag_ngrams = self.tag_ngrams
         tag_seq = self.tag_seq
         ngram_type_counter = Counter()
@@ -350,7 +353,7 @@ class Graph:
             sum_list.append((v_probs * v_weight).view(1, -1))
 
         sum_tensor = torch.cat(sum_list, dim=0)
-        return torch.sum(sum_tensor, dim=0).item()
+        return torch.sum(sum_tensor, dim=0).cpu()
 
     # get sum of neighbour nodes weights
     def neighbour_weight_sum(self, u):
@@ -373,16 +376,16 @@ class Graph:
         logger.debug("start viterbi decode")
         alpha = 0.6
         decode_seq = []
-        assert len(self.train_text) == len(self.tag_probs)
-        for sent, sent_probs in zip(self.train_text, self.tag_probs):
+        assert len(self.data_set.train_texts) == len(self.tag_probs)
+        for sent, sent_probs in zip(self.data_set.train_texts, self.tag_probs):
             sent_seq = []
             ngrams = sent2trigrams(sent)
             for n_i, ngram in enumerate(ngrams):
-                prob = sent_probs[n_i]
+                prob = sent_probs[n_i].cpu()
                 graph_prob = self.ngram_prob_map[ngram]
                 mix_prob = alpha * prob + (1-alpha) * graph_prob
-                _, idx = torch.max(mix_prob.view(1, -1), 2)
-                sent_seq.append(idx)
+                _, idx = torch.max(mix_prob.view(1, -1), 1)
+                sent_seq.append(idx.item())
             decode_seq.append(sent_seq)
 
         # testing if decode is the same shape as input
@@ -397,7 +400,7 @@ class Graph:
         n_list = []
         f_list = []
 
-        self.pmi_vectors = torch.zeros(self.ngram_count, self.feature_count, dtype=torch.float)
+        self.pmi_vectors = torch.zeros(self.ngram_index, self.feature_index, dtype=torch.float)
         for n_idx, ngram in enumerate(self.ngram_dict):
             n_list.append(ngram)
         for f_idx, feature in enumerate(self.feature_dict):
