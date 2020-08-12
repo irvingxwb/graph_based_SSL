@@ -4,4 +4,6 @@ preprocess.pyc
 
 log
 data/source
+data/save
+data/temp
 __pycache__
