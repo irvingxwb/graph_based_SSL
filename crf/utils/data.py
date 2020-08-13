@@ -55,11 +55,15 @@ class Data:
         self.feature_emb_dirs = []
 
         self.train_texts = []
+        self.l_train_texts = []
+        self.u_train_texts = []
         self.dev_texts = []
         self.test_texts = []
         self.raw_texts = []
 
         self.train_Ids = []
+        self.l_train_Ids = []
+        self.u_train_Ids = []
         self.dev_Ids = []
         self.test_Ids = []
         self.raw_Ids = []
@@ -207,33 +211,30 @@ class Data:
                     self.feature_emb_dirs[idx] = self.feat_config[self.feature_name[idx]]['emb_dir']
                     self.norm_feature_embs[idx] = self.feat_config[self.feature_name[idx]]['emb_norm']
 
-    def build_alphabet(self, input_file_list):
-        for input_file in input_file_list:
-            in_lines = open(input_file, 'r').readlines()
-            for line in in_lines:
-                if len(line) > 2:
-                    pairs = line.strip().split()
-                    word = pairs[0]
-                    if sys.version_info[0] < 3:
-                        word = word.decode('utf-8')
-                    if self.number_normalized:
+    def build_alphabet(self, input_data_list, content):
+        if content == "text":
+            for input_data in input_data_list:
+                for sent in input_data:
+                    for word in sent:
                         word = normalize_word(word)
-                    label = pairs[-1]
-                    self.label_alphabet.add(label)
-                    self.word_alphabet.add(word)
-                    ## build feature alphabet
-                    # for idx in range(self.feature_num):
-                    #     feat_idx = pairs[idx + 1].split(']', 1)[-1]
-                    #     self.feature_alphabets[idx].add(feat_idx)
-                    for char in word:
-                        self.char_alphabet.add(char)
+                        self.word_alphabet.add(word)
+                        ## build feature alphabet
+                        # for idx in range(self.feature_num):
+                        #     feat_idx = pairs[idx + 1].split(']', 1)[-1]
+                        #     self.feature_alphabets[idx].add(feat_idx)
+                        for char in word:
+                            self.char_alphabet.add(char)
 
-        self.word_alphabet_size = self.word_alphabet.size()
-        self.char_alphabet_size = self.char_alphabet.size()
-        self.label_alphabet_size = self.label_alphabet.size()
+            self.word_alphabet_size = self.word_alphabet.size()
+            self.char_alphabet_size = self.char_alphabet.size()
 
-        for idx in range(self.feature_num):
-            self.feature_alphabet_sizes[idx] = self.feature_alphabets[idx].size()
+        elif content == "label":
+            for input_data in input_data_list:
+                for sent in input_data:
+                    for label in sent:
+                        self.label_alphabet.add(label)
+
+            self.label_alphabet_size = self.label_alphabet.size()
 
         startS = False
         startB = False
@@ -247,8 +248,11 @@ class Data:
                 self.tagScheme = "BMES"
             else:
                 self.tagScheme = "BIO"
-        else:
-            self.tagScheme = "POS"
+        if self.sentence_classification:
+            self.tagScheme = "Not sequence labeling task"
+
+        for idx in range(self.feature_num):
+            self.feature_alphabet_sizes[idx] = self.feature_alphabets[idx].size()
 
     def fix_alphabet(self):
         self.word_alphabet.close()
@@ -278,6 +282,26 @@ class Data:
                     self.feature_emb_dirs[idx], self.feature_alphabets[idx], self.feature_emb_dims[idx],
                     self.norm_feature_embs[idx])
 
+    def get_instance(self, name, texts, labels=None):
+        if name == "labeled_train":
+            self.l_train_texts, self.l_train_Ids = gene_instance(texts, labels, self.word_alphabet,
+                                                                     self.char_alphabet,
+                                                                     self.feature_alphabets, self.label_alphabet,
+                                                                     self.number_normalized, self.MAX_SENTENCE_LENGTH,
+                                                                     self.split_token)
+        elif name == "unlabeled_train":
+            self.u_train_texts, self.u_train_Ids = gene_instance(texts, labels, self.word_alphabet, self.char_alphabet,
+                                                      self.feature_alphabets, self.label_alphabet,
+                                                      self.number_normalized, self.MAX_SENTENCE_LENGTH,
+                                                      self.split_token)
+        elif name == "train":
+            self.train_texts, self.train_Ids = read_instance(self.train_dir, self.word_alphabet, self.char_alphabet,
+                                                             self.feature_alphabets, self.label_alphabet,
+                                                             self.number_normalized, self.MAX_SENTENCE_LENGTH,
+                                                             self.split_token)
+        else:
+            logger.info("Error: you can only generate train/dev/test instance! Illegal input:%s" % (name))
+
     def generate_instance(self, name):
         if name == "train":
             self.train_texts, self.train_Ids = read_instance(self.train_dir, self.word_alphabet, self.char_alphabet,
@@ -294,11 +318,6 @@ class Data:
                                                            self.feature_alphabets, self.label_alphabet,
                                                            self.number_normalized, self.MAX_SENTENCE_LENGTH,
                                                            self.sentence_classification, self.split_token)
-        elif name == "raw":
-            self.raw_texts, self.raw_Ids = read_instance(self.raw_dir, self.word_alphabet, self.char_alphabet,
-                                                         self.feature_alphabets, self.label_alphabet,
-                                                         self.number_normalized, self.MAX_SENTENCE_LENGTH,
-                                                         self.sentence_classification, self.split_token)
         else:
             logger.info("Error: you can only generate train/dev/test instance! Illegal input:%s" % (name))
 

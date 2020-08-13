@@ -6,7 +6,7 @@ dev_dir: data/dev.bmes
 test_dir: data/test.bmes
 model_dir: data/lstmcrf
 word_emb_dir: data/sample.word.emb
-load_model_dir: data/lstmcrf/19.model
+load_model_dir: data/lstmcrf/18.model
 
 raw_dir: data/raw.bmes
 decode_dir: data/raw.out

@@ -2,5 +2,8 @@ graph_tool.pyc
 helper.pyc
 preprocess.pyc
 
-graph.log
+log
+data/source
+data/save
+data/temp
 __pycache__
