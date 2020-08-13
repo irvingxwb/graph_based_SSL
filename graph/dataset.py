@@ -78,8 +78,8 @@ class Dataset:
             self.dev_texts, self.dev_labels = preprocess_data(raw_data, 'dev')
 
         # select and combine dataset
-        self.labeled_train_texts = self.labeled_train_texts[0:500]
-        self.unlabeled_train_texts = self.unlabeled_train_texts[0:10000]
+        self.labeled_train_texts = self.labeled_train_texts
+        self.unlabeled_train_texts = self.unlabeled_train_texts
         self.train_texts = self.labeled_train_texts + self.unlabeled_train_texts
         self.labeled_cnt = len(self.labeled_train_texts)
         self.unlabeled_cnt = len(self.unlabeled_train_texts)
