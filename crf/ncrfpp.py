@@ -401,9 +401,10 @@ class NCRFpp:
         self.data.generate_instance('dev')
         self.data.build_pretrain_emb()
 
-    def train_crf(self, mode):
+    def train_crf(self, mode, text=None):
         if mode == "train":
             train(self.data)
+
 
     def decode_marginals(self):
         logger.info("model: decode")

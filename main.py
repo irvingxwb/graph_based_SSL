@@ -61,7 +61,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # debug mode flags, use all prestored data for debugging
-    load_pmi = True
+    load_pmi = False
     load_graph = False
     load_crf = False
 
@@ -111,14 +111,17 @@ if __name__ == '__main__':
         logger.debug("load crf result from file")
 
     graph.update_train_result(tag_seq, tag_probs, tag_mask)
+    logger.debug("sequence length %d" % len(tag_seq))
 
     # token to type map
     graph.token2type_map(flag='train')
 
     # graph propogations
-    graph.graph_props(iter_num=10)
+    graph.graph_props(iter_num=5)
 
     # Viterbi decoding
     graph.viterbi_decode()
 
     # Retrain crf
+    retrain_data_texts = graph.generate_retrain_data()
+    crf.train_crf(mode='retrain', text=retrain_data_texts)

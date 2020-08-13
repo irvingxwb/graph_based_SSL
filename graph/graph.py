@@ -196,7 +196,7 @@ class Graph:
 
         temp_graph_map = []
         temp_weight_map = []
-        batch_size = 1000
+        batch_size = 500
         total_num = math.ceil(self.ngram_index / batch_size)
         for i in range(total_num):
             start = i * batch_size
@@ -211,22 +211,21 @@ class Graph:
             # get weight of graph for each nearest node, which are their similarities
             batch_weight_set = [elem_sim[elem_nst] for elem_sim, elem_nst in zip(batch_sim_vec, batch_nst_set)]
             temp_weight_map.extend(batch_weight_set)
+            logger.debug("finish : %d -- total : %d" % (i, total_num))
 
         # each node is a list of neighbour nodes
         self.graph_map = temp_graph_map
+        self.graph_weight_map = temp_weight_map
         logger.debug("finish computer distance matrix")
 
-        # # construct neighbour nodes' matching weight
-        # self.graph_weight_map = []
-        # for u, u_neigh in enumerate(self.graph_map):
-        #     # check if u is in K(v) for each v in K(u)
-        #     u_weight = []
-        #     for v_idx, v in enumerate(u_neigh):
-        #         if u in self.graph_map[v]:
-        #             u_weight.append(dist_vec[u, v])
-        #         else:
-        #             u_weight.append(0)
-        #     self.graph_weight_map.append(u_weight)
+        # construct neighbour nodes' matching weight
+        self.graph_weight_map = []
+        for u_idx, u_neigh in enumerate(self.graph_map):
+            # check if u is in K(v) for each v in K(u)
+            for idx, v in enumerate(u_neigh):
+                if u_idx not in self.graph_map[v] or self.graph_weight_map[u_idx][idx] == 1:
+                    # weight of v in u_neighbour
+                    self.graph_weight_map[u_idx][idx] = 0
 
         logger.debug("complete building graph")
 
@@ -266,14 +265,14 @@ class Graph:
                     # logger.debug("merge probs index %d  %d" % (p_idx.item(), c_idx.item()))
                     origin_label_set.append(c_idx.cpu().item())
 
-        # test result
-        index_set = []
-        for ngram, prob in self.ngram_prob_map.items():
-            _, idx = torch.max(prob.view(1, -1), 1)
-            index_set.append(idx.cpu().item())
-
-        label_counter = Counter(index_set)
-        origin_counter = Counter(origin_label_set)
+        # # test result
+        # index_set = []
+        # for ngram, prob in self.ngram_prob_map.items():
+        #     _, idx = torch.max(prob.view(1, -1), 1)
+        #     index_set.append(idx.cpu().item())
+        #
+        # label_counter = Counter(index_set)
+        # origin_counter = Counter(origin_label_set)
 
         logger.debug("finish token to type map")
 
@@ -410,6 +409,9 @@ class Graph:
             assert len(decode_sent) == ((mask_sent != 0).sum())
 
     def generate_retrain_data(self):
+        return
+
+    def retrain_crf(self):
         return
 
     def get_flat_ngramfeature_lists(self):
