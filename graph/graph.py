@@ -1,6 +1,4 @@
 from .functions import sent2trigrams, sent2graphfeatures
-from sklearn.metrics import pairwise_distances
-from scipy.sparse import lil_matrix
 from collections import Counter
 from graph.io_helper import *
 import numpy as np
@@ -10,6 +8,19 @@ import copy
 import math
 
 logger = logging.getLogger("Graph")
+
+
+# adapted from internet
+def pairwise_distances(x, y):
+    n = x.size(0)
+    m = y.size(0)
+    d = x.size(1)
+
+    x = x.unsqueeze(1).expand(n, m, d)
+    y = y.unsqueeze(0).expand(n, m, d)
+
+    dist = (x * y).sum(2) / (torch.pow(x, 2) + torch.pow(y, 2)).sum().sqrt()
+    return dist
 
 
 class Graph:
@@ -170,7 +181,7 @@ class Graph:
         logger.debug("complete graph init with: %s %s" % (str(self.ngram_index), str(self.feature_index)))
 
     def build_pmi_vectors(self):
-        self.pmi_vectors = lil_matrix((self.ngram_index, self.feature_index), dtype=float)
+        self.pmi_vectors = torch.sparse.FloatTensor(self.ngram_index, self.feature_index)
         for n_idx, ngram in enumerate(self.ngram_dict):
             for features in self.ngrams_features_dict[ngram]:
                 for feature_name, feature in features.items():
@@ -196,14 +207,14 @@ class Graph:
 
         temp_graph_map = []
         temp_weight_map = []
-        batch_size = 500
+        batch_size = self.ngram_index
         total_num = math.ceil(self.ngram_index / batch_size)
         for i in range(total_num):
             start = i * batch_size
             end = (i+1) * batch_size
             if end > self.ngram_index:
                 end = self.ngram_index
-            batch_dist_vec = pairwise_distances(self.pmi_vectors[start:end], self.pmi_vectors, metric='cosine')
+            batch_dist_vec = pairwise_distances(self.pmi_vectors[start:end], self.pmi_vectors)
             batch_sim_vec = 1 - batch_dist_vec
             temp_set = np.argpartition(batch_sim_vec, k+1)
             batch_nst_set = temp_set[:, :k+1]

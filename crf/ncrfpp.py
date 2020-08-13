@@ -391,20 +391,24 @@ class NCRFpp:
         logger.info("GPU available: " + str(self.data.HP_gpu))
 
     # labeled train text, unlabeled train text, labeled_train_label, test_text
-    def build_crf(self, l_texts, u_texts, l_labels):
+    def build_crf(self, data_set):
         logger.info("MODEL: train")
+        l_texts = data_set.labeled_train_texts
+        u_texts = data_set.unlabeled_train_texts
+        l_labels = data_set.labeled_train_labels
+        d_texts = data_set.dev_texts
+        d_labels = data_set.dev_labels
         self.data.build_alphabet([l_texts, u_texts], content='text')
         self.data.build_alphabet([l_labels], content='label')
         self.data.fix_alphabet()
         self.data.get_instance('labeled_train', l_texts, l_labels)
         self.data.get_instance('unlabeled_train', u_texts)
-        self.data.generate_instance('dev')
+        self.data.get_instance('dev', d_texts, d_labels)
         self.data.build_pretrain_emb()
 
     def train_crf(self, mode, text=None):
         if mode == "train":
             train(self.data)
-
 
     def decode_marginals(self):
         logger.info("model: decode")

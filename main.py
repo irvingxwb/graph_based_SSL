@@ -56,6 +56,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--labeled_train", default='./data/train/labeled_train')
     parser.add_argument("--unlabeled_train", default='./data/train/unlabeled_train')
+    parser.add_argument("--dev", default='./data/train/labeled_dev')
     parser.add_argument("--graph_dir", default='./data/save/graph/')
     parser.add_argument("--crf_dir", default='./data/save/crf/')
     args = parser.parse_args()
@@ -70,6 +71,7 @@ if __name__ == '__main__':
     data_set.gpu = torch.cuda.is_available()
     data_set.labeled_train_dir = args.labeled_train
     data_set.unlabeled_train_dir = args.unlabeled_train
+    data_set.dev_dir = args.dev
 
     # load data set
     data_set.load_all_data()
@@ -77,27 +79,27 @@ if __name__ == '__main__':
     logger.debug("length of unlabeled data: %d sentences" % data_set.unlabeled_cnt)
 
     # initialize graph89+\78569+
-    graph = Graph(data_set)
-    if not load_pmi:
-        graph.build_pmi_vectors()
-        graph.save(args.graph_dir, 'pmi')
-    else:
-        graph.load(args.graph_dir, 'pmi')
-        logger.debug("Load pre-computed pmi vectors from file")
-
-    if not load_graph:
-        graph.construct_graph()
-        graph.save(args.graph_dir, 'graph')
-    else:
-        graph.load(args.graph_dir, 'graph')
-        logger.debug("Load pre-computed graph from file")
+    # graph = Graph(data_set)
+    # if not load_pmi:
+    #     graph.build_pmi_vectors()
+    #     graph.save(args.graph_dir, 'pmi')
+    # else:
+    #     graph.load(args.graph_dir, 'pmi')
+    #     logger.debug("Load pre-computed pmi vectors from file")
+    #
+    # if not load_graph:
+    #     graph.construct_graph()
+    #     graph.save(args.graph_dir, 'graph')
+    # else:
+    #     graph.load(args.graph_dir, 'graph')
+    #     logger.debug("Load pre-computed graph from file")
 
     # initialize crf
     crf = NCRFpp()
-    crf.build_crf(data_set.labeled_train_texts, data_set.unlabeled_train_texts, data_set.labeled_train_labels)
+    crf.build_crf(data_set)
     if not load_crf:
         # train crf, time consuming
-        # crf.train_crf("train")
+        crf.train_crf("train")
         tag_seq, tag_probs, tag_mask = crf.decode_marginals()
         # tag sequence contain unlabeled data tags, only evaluate tags with labeled data
         acc = crf.evaluate_tags(tag_seq, data_set.labeled_train_labels)

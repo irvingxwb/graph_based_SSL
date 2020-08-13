@@ -46,6 +46,8 @@ class Dataset:
     labeled_train_texts = None
     labeled_train_labels = None
     unlabeled_train_texts = None
+    dev_texts = None
+    dev_labels = None
 
     # hyper parameters
     k_nearest = 5
@@ -69,6 +71,11 @@ class Dataset:
             with open(self.unlabeled_train_dir) as f:
                 raw_data = f.readlines()
             self.unlabeled_train_texts, _ = preprocess_data(raw_data, "unlabeled")
+
+        if self.dev_dir:
+            with open(self.labeled_train_dir) as f:
+                raw_data = f.readlines()
+            self.dev_texts, self.dev_labels = preprocess_data(raw_data, 'dev')
 
         # select and combine dataset
         self.labeled_train_texts = self.labeled_train_texts
