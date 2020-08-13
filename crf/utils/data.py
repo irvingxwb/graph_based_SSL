@@ -401,7 +401,7 @@ class Data:
 
     def read_config(self, config_file):
         with open(config_file) as file:
-            config = yaml.load(file, Loader=yaml.FullLoader)
+            config = yaml.load(file, Loader=yaml.Loader)
         ## read data:
 
         for key in config.keys():
