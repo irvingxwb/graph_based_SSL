@@ -407,7 +407,8 @@ class Data:
         for key in config.keys():
             if hasattr(self, key):
                 if type(config[key]) == str and '/' in config[key]:
-                    setattr(self, key, Path(config[key]))
+                    setattr(self, key, config[key])
+                    # setattr(self, key, Path(config[key]))
                 else:
                     setattr(self, key, config[key])
 
