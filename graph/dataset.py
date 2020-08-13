@@ -35,7 +35,6 @@ def preprocess_data(raw_data, mode):
     return text, label
 
 
-
 class Dataset:
     # I/O
     word_emb_dir = None

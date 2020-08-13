@@ -7,6 +7,7 @@ import numpy as np
 import logging
 import torch
 import copy
+import math
 
 logger = logging.getLogger("Graph")
 
@@ -68,19 +69,19 @@ class Graph:
     # save ngram_dict, graph_map, graph_weight_map
     def save(self, graph_dir, part):
         if part == 'graph':
-            save_ins(self.ngram_dict, "ngram_dict", graph_dir)
             save_ins(self.graph_map, "graph_map", graph_dir)
             save_ins(self.graph_weight_map, "weight_map", graph_dir)
-        elif part == 'propogate':
-            pass
+        elif part == 'pmi':
+            save_ins(self.ngram_dict, "ngram_dict", graph_dir)
+            save_ins(self.pmi_vectors, "pmi", graph_dir)
 
     def load(self, graph_dir, part):
         if part == 'graph':
-            self.ngram_dict = load_ins("ngram_dict", graph_dir)
             self.graph_map = load_ins("graph_map", graph_dir)
             self.graph_weight_map = load_ins("weight_map", graph_dir)
-        elif part == 'propogate':
-            pass
+        elif part == 'pmi':
+            self.ngram_dict = load_ins("ngram_dict", graph_dir)
+            self.pmi_vectors = load_ins("pmi", graph_dir)
 
     def update_train_result(self, tag_seq, tag_probs, tag_mask):
         self.tag_seq = tag_seq
@@ -191,26 +192,41 @@ class Graph:
     # compute neighbourhood
     def construct_graph(self):
         k = self.data_set.k_nearest
+        self.ngram_index = len(self.ngram_dict)
 
-        dist_vec = pairwise_distances(self.pmi_vectors, self.pmi_vectors, metric='cosine')
-        nearest_set = dist_vec.argsort()[:, 1:k + 1]
+        temp_graph_map = []
+        temp_weight_map = []
+        batch_size = 1000
+        total_num = math.ceil(self.ngram_index / batch_size)
+        for i in range(total_num):
+            start = i * batch_size
+            end = (i+1) * batch_size
+            if end > self.ngram_index:
+                end = self.ngram_index
+            batch_dist_vec = pairwise_distances(self.pmi_vectors[start:end], self.pmi_vectors, metric='cosine')
+            batch_sim_vec = 1 - batch_dist_vec
+            temp_set = np.argpartition(batch_sim_vec, k+1)
+            batch_nst_set = temp_set[:, :k+1]
+            temp_graph_map.extend(batch_nst_set)
+            # get weight of graph for each nearest node, which are their similarities
+            batch_weight_set = [elem_sim[elem_nst] for elem_sim, elem_nst in zip(batch_sim_vec, batch_nst_set)]
+            temp_weight_map.extend(batch_weight_set)
 
-        logger.debug("finish computer distance matrix")
         # each node is a list of neighbour nodes
-        self.graph_map = nearest_set
+        self.graph_map = temp_graph_map
+        logger.debug("finish computer distance matrix")
 
-        # construct neighbour nodes' matching weight
-        self.graph_weight_map = []
-        for u, u_neigh in enumerate(self.graph_map):
-            # check if u is in K(v) for each v in K(u)
-            u_weight = []
-            for v_idx, v in enumerate(u_neigh):
-                if u in self.graph_map[v]:
-                    assert dist_vec[u, v] == dist_vec[v, u]
-                    u_weight.append(dist_vec[u, v])
-                else:
-                    u_weight.append(0)
-            self.graph_weight_map.append(u_weight)
+        # # construct neighbour nodes' matching weight
+        # self.graph_weight_map = []
+        # for u, u_neigh in enumerate(self.graph_map):
+        #     # check if u is in K(v) for each v in K(u)
+        #     u_weight = []
+        #     for v_idx, v in enumerate(u_neigh):
+        #         if u in self.graph_map[v]:
+        #             u_weight.append(dist_vec[u, v])
+        #         else:
+        #             u_weight.append(0)
+        #     self.graph_weight_map.append(u_weight)
 
         logger.debug("complete building graph")
 

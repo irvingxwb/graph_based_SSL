@@ -61,6 +61,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # debug mode flags, use all prestored data for debugging
+    load_pmi = True
     load_graph = False
     load_crf = False
 
@@ -77,9 +78,14 @@ if __name__ == '__main__':
 
     # initialize graph89+\78569+
     graph = Graph(data_set)
+    if not load_pmi:
+        graph.build_pmi_vectors()
+        graph.save(args.graph_dir, 'pmi')
+    else:
+        graph.load(args.graph_dir, 'pmi')
+        logger.debug("Load pre-computed pmi vectors from file")
 
     if not load_graph:
-        graph.build_pmi_vectors()
         graph.construct_graph()
         graph.save(args.graph_dir, 'graph')
     else:
