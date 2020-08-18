@@ -116,11 +116,11 @@ def process_unlabeled(data_length):
 if __name__ == "__main__":
     # labeled_data length around 50000
     t_start = 0
-    t_end = 1000
-    v_start = 2000
-    v_end = 3000
-    te_start = 4000
-    te_end = 5000
+    t_end = 4000
+    v_start = 5000
+    v_end = 7000
+    te_start = 8000
+    te_end = 10000
     unlabeled_length = 50000
     process_labeled('train', t_start, t_end)
     process_labeled('dev', v_start, v_end)

@@ -412,7 +412,6 @@ class NCRFpp:
 
     def decode_marginals(self):
         logger.info("model: decode")
-        name = "train"
         self.model = SeqLabel(self.data)
         self.model.load_state_dict(torch.load(self.data.load_model_dir))
         self.model.eval()

@@ -6,21 +6,10 @@ import logging
 import torch
 import copy
 import math
+import itertools
+import sklearn.preprocessing as pre
 
 logger = logging.getLogger("Graph")
-
-
-# adapted from internet
-def pairwise_distances(x, y):
-    n = x.size(0)
-    m = y.size(0)
-    d = x.size(1)
-
-    x = x.unsqueeze(1).expand(n, m, d)
-    y = y.unsqueeze(0).expand(n, m, d)
-
-    dist = (x * y).sum(2) / (torch.pow(x, 2) + torch.pow(y, 2)).sum().sqrt()
-    return dist
 
 
 class Graph:
@@ -52,6 +41,8 @@ class Graph:
     ngram_index = 0
     feature_index = 0
     # index of pmi vectors is the same as ngram dict
+    i_vectors = None
+    v_vectors = None
     pmi_vectors = None
 
     # graph map is numpy nd array
@@ -84,7 +75,7 @@ class Graph:
             save_ins(self.graph_weight_map, "weight_map", graph_dir)
         elif part == 'pmi':
             save_ins(self.ngram_dict, "ngram_dict", graph_dir)
-            save_ins(self.pmi_vectors, "pmi", graph_dir)
+            save_tensor(self.pmi_vectors, "pmi", graph_dir)
 
     def load(self, graph_dir, part):
         if part == 'graph':
@@ -92,7 +83,7 @@ class Graph:
             self.graph_weight_map = load_ins("weight_map", graph_dir)
         elif part == 'pmi':
             self.ngram_dict = load_ins("ngram_dict", graph_dir)
-            self.pmi_vectors = load_ins("pmi", graph_dir)
+            self.pmi_vectors = load_tensor("pmi", graph_dir)
 
     def update_train_result(self, tag_seq, tag_probs, tag_mask):
         self.tag_seq = tag_seq
@@ -181,14 +172,34 @@ class Graph:
         logger.debug("complete graph init with: %s %s" % (str(self.ngram_index), str(self.feature_index)))
 
     def build_pmi_vectors(self):
-        self.pmi_vectors = torch.sparse.FloatTensor(self.ngram_index, self.feature_index)
+        i = []
+        v = []
         for n_idx, ngram in enumerate(self.ngram_dict):
+            temp_i = []
+            temp_v = []
             for features in self.ngrams_features_dict[ngram]:
                 for feature_name, feature in features.items():
                     f_idx = self.feature_dict[feature]
                     score = self.pmi_score(ngram, feature)
-                    self.pmi_vectors[n_idx, f_idx] = score
+                    temp_i.append([n_idx, f_idx])
+                    temp_v.append(score)
+            array_i = np.array(temp_i)
+            array_v = np.array(temp_v)
+            array_v = array_v / np.sqrt(np.sum(np.power(array_v, 2)))
+            # test_v_2 = pre.normalize(array_v.reshape(1, -1))
+            i.append(array_i.tolist())
+            v.append(array_v.tolist())
 
+        # saved for further slicing
+        self.v_vectors = v
+        self.i_vectors = i
+        # convert list of lists to a flat list
+        list_i = list(itertools.chain.from_iterable(i))
+        list_v = list(itertools.chain.from_iterable(v))
+        # normalized pmi_vectors
+        self.pmi_vectors = torch.sparse.FloatTensor(torch.tensor(list_i).t(), torch.tensor(list_v),
+                                                    torch.Size([self.ngram_index, self.feature_index]))
+        self.pmi_vectors = self.pmi_vectors.cuda()
         logger.debug("complete pmi vectors compute")
 
     def pmi_score(self, ngram, feature):
@@ -196,8 +207,7 @@ class Graph:
         count_feature = self.feature_counters[feature]
         count_ngram_feature = self.ngrams_feature_counters[(ngram, feature)]
 
-        score = np.log((count_ngram_feature * self.ngram_index) / (count_ngram * count_feature))
-
+        score = np.log(count_ngram_feature / ((count_feature * count_ngram) / (self.ngram_index * self.feature_index)))
         return score
 
     # compute neighbourhood
@@ -205,22 +215,28 @@ class Graph:
         k = self.data_set.k_nearest
         self.ngram_index = len(self.ngram_dict)
 
+        # batched in case matrix out of memory
         temp_graph_map = []
         temp_weight_map = []
-        batch_size = self.ngram_index
+        batch_size = 100
         total_num = math.ceil(self.ngram_index / batch_size)
+
         for i in range(total_num):
+            # build dense matrix
             start = i * batch_size
             end = (i+1) * batch_size
             if end > self.ngram_index:
                 end = self.ngram_index
-            batch_dist_vec = pairwise_distances(self.pmi_vectors[start:end], self.pmi_vectors)
-            batch_sim_vec = 1 - batch_dist_vec
-            temp_set = np.argpartition(batch_sim_vec, k+1)
+            batch_i = list(itertools.chain.from_iterable(self.i_vectors[start:end]))
+            batch_v = list(itertools.chain.from_iterable(self.v_vectors[start:end]))
+            target = torch.sparse.FloatTensor(torch.tensor(batch_i).t(), torch.tensor(batch_v),
+                                              torch.Size([batch_size, self.feature_index])).to_dense().transpose(1, 0).cuda()
+            batch_dist_vec = torch.sparse.mm(self.pmi_vectors, target).transpose(1, 0)
+            index, value = torch.topk(batch_dist_vec, k=self.data_set.k_nearest + 1, largest=False, dim=1)
             batch_nst_set = temp_set[:, :k+1]
             temp_graph_map.extend(batch_nst_set)
             # get weight of graph for each nearest node, which are their similarities
-            batch_weight_set = [elem_sim[elem_nst] for elem_sim, elem_nst in zip(batch_sim_vec, batch_nst_set)]
+            batch_weight_set = [elem_sim[elem_nst] for elem_sim, elem_nst in zip(batch_dist_vec, batch_nst_set)]
             temp_weight_map.extend(batch_weight_set)
             logger.debug("finish : %d -- total : %d" % (i, total_num))
 

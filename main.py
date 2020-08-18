@@ -78,21 +78,21 @@ if __name__ == '__main__':
     logger.debug("length of labeled data: %d sentences" % data_set.labeled_cnt)
     logger.debug("length of unlabeled data: %d sentences" % data_set.unlabeled_cnt)
 
-    # initialize graph89+\78569+
-    # graph = Graph(data_set)
-    # if not load_pmi:
-    #     graph.build_pmi_vectors()
-    #     graph.save(args.graph_dir, 'pmi')
-    # else:
-    #     graph.load(args.graph_dir, 'pmi')
-    #     logger.debug("Load pre-computed pmi vectors from file")
-    #
-    # if not load_graph:
-    #     graph.construct_graph()
-    #     graph.save(args.graph_dir, 'graph')
-    # else:
-    #     graph.load(args.graph_dir, 'graph')
-    #     logger.debug("Load pre-computed graph from file")
+    # initialize graph
+    graph = Graph(data_set)
+    if not load_pmi:
+        graph.build_pmi_vectors()
+        graph.save(args.graph_dir, 'pmi')
+    else:
+        graph.load(args.graph_dir, 'pmi')
+        logger.debug("Load pre-computed pmi vectors from file")
+
+    if not load_graph:
+        graph.construct_graph()
+        graph.save(args.graph_dir, 'graph')
+    else:
+        graph.load(args.graph_dir, 'graph')
+        logger.debug("Load pre-computed graph from file")
 
     # initialize crf
     crf = NCRFpp()
@@ -126,4 +126,4 @@ if __name__ == '__main__':
 
     # Retrain crf
     retrain_data_texts = graph.generate_retrain_data()
-    crf.train_crf(mode='retrain', text=retrain_data_texts)
+    # crf.train_crf(mode='retrain', text=retrain_data_texts)
