@@ -333,48 +333,48 @@ def train(data):
             model.zero_grad()
         temp_time = time.time()
         temp_cost = temp_time - temp_start
-        logger.info("     Instance: %s; Time: %.2fs; loss: %.4f; acc: %s/%s=%.4f" % (
-            end, temp_cost, sample_loss, right_token, whole_token, (right_token + 0.) / whole_token))
+        print("     Instance: %s; Time: %.2fs; loss: %.4f; acc: %s/%s=%.4f" % (
+        end, temp_cost, sample_loss, right_token, whole_token, (right_token + 0.) / whole_token))
 
         epoch_finish = time.time()
         epoch_cost = epoch_finish - epoch_start
-        logger.info("Epoch: %s training finished. Time: %.2fs, speed: %.2fst/s,  total loss: %s" % (
-            idx, epoch_cost, train_num / epoch_cost, total_loss))
-        logger.info("totalloss: %s" % str(total_loss))
+        print("Epoch: %s training finished. Time: %.2fs, speed: %.2fst/s,  total loss: %s" % (
+        idx, epoch_cost, train_num / epoch_cost, total_loss))
+        print("totalloss:", total_loss)
         if total_loss > 1e8 or str(total_loss) == "nan":
-            logger.info("ERROR: LOSS EXPLOSION (>1e8) ! PLEASE SET PROPER PARAMETERS AND STRUCTURE! EXIT....")
+            print("ERROR: LOSS EXPLOSION (>1e8) ! PLEASE SET PROPER PARAMETERS AND STRUCTURE! EXIT....")
             exit(1)
         # continue
-        speed, acc, p, r, f, _, _ = evaluate(data, model, "train")
-        train_finish = time.time()
-        train_cost = train_finish - epoch_finish
+        speed, acc, p, r, f, _, _ = evaluate(data, model, "dev")
+        dev_finish = time.time()
+        dev_cost = dev_finish - epoch_finish
 
         if data.seg:
             current_score = f
-            logger.info("Dev: time: %.2fs, speed: %.2fst/s; acc: %.4f, p: %.4f, r: %.4f, f: %.4f" % (
-                train_cost, speed, acc, p, r, f))
+            print("Dev: time: %.2fs, speed: %.2fst/s; acc: %.4f, p: %.4f, r: %.4f, f: %.4f" % (
+            dev_cost, speed, acc, p, r, f))
         else:
             current_score = acc
-            logger.info("Dev: time: %.2fs speed: %.2fst/s; acc: %.4f" % (train_cost, speed, acc))
+            print("Dev: time: %.2fs speed: %.2fst/s; acc: %.4f" % (dev_cost, speed, acc))
 
         if current_score > best_dev:
             if data.seg:
-                logger.info("Exceed previous best f score: %s" % str(best_dev))
+                print("Exceed previous best f score:", best_dev)
             else:
-                logger.info("Exceed previous best acc score: %s" % str(best_dev))
-            model_name = str(idx) + ".model"
-            logger.info("Save current best model in file: %s" % str(model_name))
-            torch.save(model.state_dict(), data.model_dir + model_name)
+                print("Exceed previous best acc score:", best_dev)
+            model_name = data.model_dir + '.' + str(idx) + ".model"
+            print("Save current best model in file:", model_name)
+            torch.save(model.state_dict(), model_name)
             best_dev = current_score
         # ## decode test
-        # speed, acc, p, r, f, _, _ = evaluate(data, model, "test")
-        # test_finish = time.time()
-        # test_cost = test_finish - dev_finish
-        # if data.seg:
-        #     logger.info("Test: time: %.2fs, speed: %.2fst/s; acc: %.4f, p: %.4f, r: %.4f, f: %.4f" % (
-        #         test_cost, speed, acc, p, r, f))
-        # else:
-        #     logger.info("Test: time: %.2fs, speed: %.2fst/s; acc: %.4f" % (test_cost, speed, acc))
+        speed, acc, p, r, f, _, _ = evaluate(data, model, "test")
+        test_finish = time.time()
+        test_cost = test_finish - dev_finish
+        if data.seg:
+            print("Test: time: %.2fs, speed: %.2fst/s; acc: %.4f, p: %.4f, r: %.4f, f: %.4f" % (
+            test_cost, speed, acc, p, r, f))
+        else:
+            print("Test: time: %.2fs, speed: %.2fst/s; acc: %.4f" % (test_cost, speed, acc))
         gc.collect()
 
 
@@ -398,12 +398,15 @@ class NCRFpp:
         l_labels = data_set.labeled_train_labels
         d_texts = data_set.dev_texts
         d_labels = data_set.dev_labels
-        self.data.build_alphabet([l_texts, u_texts], content='text')
-        self.data.build_alphabet([l_labels], content='label')
+        t_texts = data_set.test_texts
+        t_labels = data_set.test_labels
+        self.data.build_alphabet([l_texts, u_texts, d_texts, t_texts], content='text')
+        self.data.build_alphabet([l_labels, d_labels, t_labels], content='label')
         self.data.fix_alphabet()
         self.data.get_instance('labeled_train', l_texts, l_labels)
         self.data.get_instance('unlabeled_train', u_texts)
         self.data.get_instance('dev', d_texts, d_labels)
+        self.data.get_instance('test', t_texts, t_labels)
         self.data.build_pretrain_emb()
 
     def train_crf(self, mode, text=None):

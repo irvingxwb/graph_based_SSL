@@ -43,6 +43,7 @@ class Graph:
     # index of pmi vectors is the same as ngram dict
     i_vectors = None
     v_vectors = None
+    batch_i_vectors = None
     pmi_vectors = None
 
     # graph map is numpy nd array
@@ -58,6 +59,7 @@ class Graph:
 
     # parameter
     labeled_num = 0
+    batch_size = 500
 
     # k for k_nearest
     def __init__(self, data_set):
@@ -71,16 +73,16 @@ class Graph:
     # save ngram_dict, graph_map, graph_weight_map
     def save(self, graph_dir, part):
         if part == 'graph':
-            save_ins(self.graph_map, "graph_map", graph_dir)
-            save_ins(self.graph_weight_map, "weight_map", graph_dir)
+            save_tensor(self.graph_map, "graph_map", graph_dir)
+            save_tensor(self.graph_weight_map, "weight_map", graph_dir)
         elif part == 'pmi':
             save_ins(self.ngram_dict, "ngram_dict", graph_dir)
             save_tensor(self.pmi_vectors, "pmi", graph_dir)
 
     def load(self, graph_dir, part):
         if part == 'graph':
-            self.graph_map = load_ins("graph_map", graph_dir)
-            self.graph_weight_map = load_ins("weight_map", graph_dir)
+            self.graph_map = load_tensor("graph_map", graph_dir)
+            self.graph_weight_map = load_tensor("weight_map", graph_dir)
         elif part == 'pmi':
             self.ngram_dict = load_ins("ngram_dict", graph_dir)
             self.pmi_vectors = load_tensor("pmi", graph_dir)
@@ -174,25 +176,31 @@ class Graph:
     def build_pmi_vectors(self):
         i = []
         v = []
+        # batched i list for constructing separated sparse array
+        batch_i = []
         for n_idx, ngram in enumerate(self.ngram_dict):
             temp_i = []
+            temp_batch_i = []
             temp_v = []
             for features in self.ngrams_features_dict[ngram]:
                 for feature_name, feature in features.items():
                     f_idx = self.feature_dict[feature]
                     score = self.pmi_score(ngram, feature)
                     temp_i.append([n_idx, f_idx])
+                    temp_batch_i.append([n_idx % self.batch_size, f_idx])
                     temp_v.append(score)
-            array_i = np.array(temp_i)
+
             array_v = np.array(temp_v)
             array_v = array_v / np.sqrt(np.sum(np.power(array_v, 2)))
             # test_v_2 = pre.normalize(array_v.reshape(1, -1))
-            i.append(array_i.tolist())
+            i.append(temp_i)
+            batch_i.append(temp_batch_i)
             v.append(array_v.tolist())
 
-        # saved for further slicing
+        # saved for further batching
         self.v_vectors = v
         self.i_vectors = i
+        self.batch_i_vectors = batch_i
         # convert list of lists to a flat list
         list_i = list(itertools.chain.from_iterable(i))
         list_v = list(itertools.chain.from_iterable(v))
@@ -216,9 +224,9 @@ class Graph:
         self.ngram_index = len(self.ngram_dict)
 
         # batched in case matrix out of memory
-        temp_graph_map = []
-        temp_weight_map = []
-        batch_size = 100
+        temp_graph_map = None
+        temp_weight_map = None
+        batch_size = self.batch_size
         total_num = math.ceil(self.ngram_index / batch_size)
 
         for i in range(total_num):
@@ -227,32 +235,36 @@ class Graph:
             end = (i+1) * batch_size
             if end > self.ngram_index:
                 end = self.ngram_index
-            batch_i = list(itertools.chain.from_iterable(self.i_vectors[start:end]))
+            batch_i = list(itertools.chain.from_iterable(self.batch_i_vectors[start:end]))
             batch_v = list(itertools.chain.from_iterable(self.v_vectors[start:end]))
             target = torch.sparse.FloatTensor(torch.tensor(batch_i).t(), torch.tensor(batch_v),
-                                              torch.Size([batch_size, self.feature_index])).to_dense().transpose(1, 0).cuda()
+                                              torch.Size([end-start, self.feature_index])).transpose(1, 0).to_dense().cuda()
             batch_dist_vec = torch.sparse.mm(self.pmi_vectors, target).transpose(1, 0)
-            index, value = torch.topk(batch_dist_vec, k=self.data_set.k_nearest + 1, largest=False, dim=1)
-            batch_nst_set = temp_set[:, :k+1]
-            temp_graph_map.extend(batch_nst_set)
+            values, indices = torch.topk(batch_dist_vec, k=self.data_set.k_nearest + 1, largest=True, dim=1)
+            batch_nst_set = indices
             # get weight of graph for each nearest node, which are their similarities
-            batch_weight_set = [elem_sim[elem_nst] for elem_sim, elem_nst in zip(batch_dist_vec, batch_nst_set)]
-            temp_weight_map.extend(batch_weight_set)
-            logger.debug("finish : %d -- total : %d" % (i, total_num))
+            batch_weight_set = values
+            if i == 0:
+                temp_graph_map = batch_nst_set
+                temp_weight_map = batch_weight_set
+            else:
+                temp_graph_map = torch.cat([temp_graph_map, batch_nst_set], dim=0)
+                temp_weight_map = torch.cat([temp_weight_map, batch_weight_set], dim=0)
+            # logger.debug("finish : %d -- total : %d" % (i, total_num))
 
         # each node is a list of neighbour nodes
         self.graph_map = temp_graph_map
         self.graph_weight_map = temp_weight_map
         logger.debug("finish computer distance matrix")
 
-        # construct neighbour nodes' matching weight
-        self.graph_weight_map = []
-        for u_idx, u_neigh in enumerate(self.graph_map):
-            # check if u is in K(v) for each v in K(u)
-            for idx, v in enumerate(u_neigh):
-                if u_idx not in self.graph_map[v] or self.graph_weight_map[u_idx][idx] == 1:
-                    # weight of v in u_neighbour
-                    self.graph_weight_map[u_idx][idx] = 0
+        # # construct neighbour nodes' matching weight
+        # self.graph_weight_map = []
+        # for u_idx, u_neigh in enumerate(self.graph_map):
+        #     # check if u is in K(v) for each v in K(u)
+        #     for idx, v in enumerate(u_neigh):
+        #         if u_idx not in self.graph_map[v] or self.graph_weight_map[u_idx][idx] == 1:
+        #             # weight of v in u_neighbour
+        #             self.graph_weight_map[u_idx][idx] = 0
 
         logger.debug("complete building graph")
 
@@ -261,7 +273,6 @@ class Graph:
         logger.debug("token to type: flag %s" % flag)
 
         # init probs
-        #
         ngrams = self.tag_ngrams
         probs = self.tag_probs
         mask = self.tag_mask
@@ -292,15 +303,6 @@ class Graph:
                     # logger.debug("merge probs index %d  %d" % (p_idx.item(), c_idx.item()))
                     origin_label_set.append(c_idx.cpu().item())
 
-        # # test result
-        # index_set = []
-        # for ngram, prob in self.ngram_prob_map.items():
-        #     _, idx = torch.max(prob.view(1, -1), 1)
-        #     index_set.append(idx.cpu().item())
-        #
-        # label_counter = Counter(index_set)
-        # origin_counter = Counter(origin_label_set)
-
         logger.debug("finish token to type map")
 
     # do graph propogations
@@ -327,7 +329,7 @@ class Graph:
                 kappa_u = self.delta(ngram) + nu + mu * weight_sum
                 self.new_prob_map[ngram] = gamma_u / kappa_u
 
-            # compare new and old for debugging
+            # compare labels before and after propogation for debugging
             match_cnt = 0
             change_cnt = 0
             none_o_cnt = 0
@@ -385,13 +387,13 @@ class Graph:
         u_idx = self.ngram_dict[u]
         u_neigh = self.graph_map[u_idx]
         sum_list = list()
-        # node in neigh is a list of index
-        # u_neigh : [v1, v2, v3, ]
-        # u graoh_weight: [w1, w2, w3, ]
+        # node in neigh is a tensor
+        # u_neigh : tensor[v1, v2, v3, ]
+        # u graoh_weight: tensor[w1, w2, w3, ]
         for idx, v_idx in enumerate(u_neigh):
             v_ngram = self.ngram_reverse_dict[v_idx]
             v_probs = self.ngram_prob_map[v_ngram]
-            v_weight = self.graph_weight_map[u_idx][idx]
+            v_weight = self.graph_weight_map[u_idx][idx].item()
             sum_list.append((v_probs * v_weight).view(1, -1))
 
         sum_tensor = torch.cat(sum_list, dim=0)

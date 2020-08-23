@@ -282,7 +282,7 @@ class Data:
                     self.feature_emb_dirs[idx], self.feature_alphabets[idx], self.feature_emb_dims[idx],
                     self.norm_feature_embs[idx])
 
-    def get_instance(self, name, texts, labels=None):
+    def get_instance(self, name, texts=None, labels=None):
         if name == "labeled_train":
             self.l_train_texts, self.l_train_Ids = gene_instance(texts, labels, self.word_alphabet,
                                                                      self.char_alphabet,
@@ -294,30 +294,16 @@ class Data:
                                                       self.feature_alphabets, self.label_alphabet,
                                                       self.number_normalized, self.MAX_SENTENCE_LENGTH,
                                                       self.split_token)
-        elif name == "train":
-            self.train_texts, self.train_Ids = read_instance(self.train_dir, self.word_alphabet, self.char_alphabet,
+        elif name == "dev":
+            self.dev_texts, self.dev_Ids = gene_instance(texts, labels, self.word_alphabet, self.char_alphabet,
                                                              self.feature_alphabets, self.label_alphabet,
                                                              self.number_normalized, self.MAX_SENTENCE_LENGTH,
                                                              self.split_token)
-        else:
-            logger.info("Error: you can only generate train/dev/test instance! Illegal input:%s" % (name))
-
-    def generate_instance(self, name):
-        if name == "train":
-            self.train_texts, self.train_Ids = read_instance(self.train_dir, self.word_alphabet, self.char_alphabet,
+        elif name == "test":
+            self.test_texts, self.test_Ids = gene_instance(texts, labels, self.word_alphabet, self.char_alphabet,
                                                              self.feature_alphabets, self.label_alphabet,
                                                              self.number_normalized, self.MAX_SENTENCE_LENGTH,
-                                                             self.sentence_classification, self.split_token)
-        elif name == "dev":
-            self.dev_texts, self.dev_Ids = read_instance(self.dev_dir, self.word_alphabet, self.char_alphabet,
-                                                         self.feature_alphabets, self.label_alphabet,
-                                                         self.number_normalized, self.MAX_SENTENCE_LENGTH,
-                                                         self.sentence_classification, self.split_token)
-        elif name == "test":
-            self.test_texts, self.test_Ids = read_instance(self.test_dir, self.word_alphabet, self.char_alphabet,
-                                                           self.feature_alphabets, self.label_alphabet,
-                                                           self.number_normalized, self.MAX_SENTENCE_LENGTH,
-                                                           self.sentence_classification, self.split_token)
+                                                             self.split_token)
         else:
             logger.info("Error: you can only generate train/dev/test instance! Illegal input:%s" % (name))
 

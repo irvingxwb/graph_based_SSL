@@ -57,6 +57,7 @@ if __name__ == '__main__':
     parser.add_argument("--labeled_train", default='./data/train/labeled_train')
     parser.add_argument("--unlabeled_train", default='./data/train/unlabeled_train')
     parser.add_argument("--dev", default='./data/train/labeled_dev')
+    parser.add_argument("--test", default='./data/train/labeled_test')
     parser.add_argument("--graph_dir", default='./data/save/graph/')
     parser.add_argument("--crf_dir", default='./data/save/crf/')
     args = parser.parse_args()
@@ -72,6 +73,7 @@ if __name__ == '__main__':
     data_set.labeled_train_dir = args.labeled_train
     data_set.unlabeled_train_dir = args.unlabeled_train
     data_set.dev_dir = args.dev
+    data_set.test_dir = args.test
 
     # load data set
     data_set.load_all_data()
