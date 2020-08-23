@@ -6,4 +6,5 @@ log
 data/source
 data/save
 data/temp
+data/lstmcrf
 __pycache__
