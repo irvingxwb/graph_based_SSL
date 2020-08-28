@@ -34,6 +34,7 @@ class SeqLabel(nn.Module):
         self.word_hidden = WordSequence(data)
         if self.use_crf:
             self.crf = CRF(label_size, self.gpu)
+        data.label_alphabet_size -= 2
 
     def calculate_loss(self, word_inputs, feature_inputs, word_seq_lengths, char_inputs, char_seq_lengths,
                        char_seq_recover, batch_label, mask):

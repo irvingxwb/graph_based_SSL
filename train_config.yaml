@@ -6,7 +6,7 @@ dev_dir: ./data/dev.bmes
 test_dir: ./data/test.bmes
 model_dir: ./data/lstmcrf
 word_emb_dir: ./data/sample/sample.word.emb
-load_model_dir: ./data/lstmcrf/18.model
+load_model_dir: ./data/lstmcrf/4.model
 
 decode_dir: ./data/raw.out
 
@@ -35,8 +35,8 @@ char_seq_feature: CNN
 ###TrainingSetting###
 status: train
 optimizer: SGD
-HP_iteration: 20
-HP_batch_size: 5
+HP_iteration: 5
+HP_batch_size: 10
 ave_batch_loss: False
 
 ###Hyperparameters###

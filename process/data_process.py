@@ -19,13 +19,17 @@ def read_labeled(pathlist):
                 else:
                     line = line.replace('[', '')
                     line = line.replace(']', '')
-                    words = line.split(' ')
-                    while '' in words:
-                        words.remove('')
+                    texts = line.split(' ')
+                    while '' in texts:
+                        texts.remove('')
 
-                    for word in words:
-                        if word is not '':
-                            sent.append(word.split('/'))
+                    for text in texts:
+                        try:
+                            word, label = text.split('/')
+                            sent.append([word, label])
+                        except ValueError:
+                            sent = []
+                            break
 
     return data
 
@@ -92,7 +96,7 @@ def process_labeled(name, data_start, data_end):
     sub_data = data[data_start:data_end]
     write_labeled_data(name, sub_data)
 
-    print("finish process labeled data for : %s" % name)
+    print("finish process labeled data for : %s." % name)
 
 
 def process_unlabeled(data_length):
@@ -116,9 +120,9 @@ def process_unlabeled(data_length):
 if __name__ == "__main__":
     # labeled_data length around 50000
     t_start = 0
-    t_end = 4000
-    v_start = 5000
-    v_end = 7000
+    t_end = 2000
+    v_start = 4000
+    v_end = 6000
     te_start = 8000
     te_end = 10000
     unlabeled_length = 50000

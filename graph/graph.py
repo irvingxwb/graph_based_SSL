@@ -7,7 +7,7 @@ import torch
 import copy
 import math
 import itertools
-import sklearn.preprocessing as pre
+import timeit
 
 logger = logging.getLogger("Graph")
 
@@ -17,8 +17,7 @@ class Graph:
     data_set = None
 
     # train result
-    tag_ngrams = None
-    tag_seq = None
+    tag_labels = None
     tag_probs = None
     tag_mask = None
 
@@ -78,6 +77,8 @@ class Graph:
         elif part == 'pmi':
             save_ins(self.ngram_dict, "ngram_dict", graph_dir)
             save_tensor(self.pmi_vectors, "pmi", graph_dir)
+            save_tensor(self.batch_i_vectors, "batch_i", graph_dir)
+            save_tensor(self.v_vectors, "v", graph_dir)
 
     def load(self, graph_dir, part):
         if part == 'graph':
@@ -86,9 +87,11 @@ class Graph:
         elif part == 'pmi':
             self.ngram_dict = load_ins("ngram_dict", graph_dir)
             self.pmi_vectors = load_tensor("pmi", graph_dir)
+            self.batch_i_vectors = load_tensor("batch_i", graph_dir)
+            self.v_vectors = load_tensor("v", graph_dir)
 
-    def update_train_result(self, tag_seq, tag_probs, tag_mask):
-        self.tag_seq = tag_seq
+    def update_train_result(self, tag_labels, tag_probs, tag_mask):
+        self.tag_labels = tag_labels
         self.tag_probs = tag_probs
         self.tag_mask = tag_mask
         # assert tag_seq = max(tag_probs)
@@ -269,19 +272,21 @@ class Graph:
         logger.debug("complete building graph")
 
     # raw data with its crf probs
-    def token2type_map(self, flag):
-        logger.debug("token to type: flag %s" % flag)
-
+    def token2type_map(self, texts):
         # init probs
-        ngrams = self.tag_ngrams
+        labels = self.tag_labels
         probs = self.tag_probs
         mask = self.tag_mask
-        origin_label_set = []
         ngram_count = {}
 
-        assert len(ngrams) == len(probs) == len(mask)
-        for sent_ngrams, sent_probs, sent_mask in zip(ngrams, probs, mask):
-            assert len(sent_ngrams) == ((sent_mask != 0).sum())
+        assert len(labels) == len(probs) == len(mask)
+        length = len(labels)
+        for i in range(length):
+            sent_labels = labels[i]
+            sent_probs = probs[i]
+            sent_mask = mask[i]
+            sent_text = texts[i]
+            sent_ngrams = sent2trigrams(sent_text)
             # num of ngrams is not the same as number of probs
             for n_idx, ngram in enumerate(sent_ngrams):
                 # add n_probs
@@ -290,25 +295,24 @@ class Graph:
                     self.ngram_prob_map[ngram] = n_probs
                     ngram_count[ngram] = 1
                     # debug part
-                    _, idx = torch.max(n_probs.view(1, -1), 1)
-                    origin_label_set.append(idx.cpu().item())
+                    # _, idx = torch.max(n_probs.view(1, -1), 1)
+                    # origin_label_set.append(idx.cpu().item())
                 else:
                     prev_prob = self.ngram_prob_map[ngram]
                     curr_prob = (prev_prob * ngram_count[ngram] + n_probs) / (ngram_count[ngram] + 1)
                     ngram_count[ngram] += 1
                     self.ngram_prob_map[ngram] = curr_prob
-                    # debug part
-                    _, p_idx = torch.max(prev_prob.view(1, -1), 1)
-                    _, c_idx = torch.max(curr_prob.view(1, -1), 1)
+                    # # debug part
+                    # _, p_idx = torch.max(prev_prob.view(1, -1), 1)
+                    # _, c_idx = torch.max(curr_prob.view(1, -1), 1)
                     # logger.debug("merge probs index %d  %d" % (p_idx.item(), c_idx.item()))
-                    origin_label_set.append(c_idx.cpu().item())
+                    # origin_label_set.append(c_idx.cpu().item())
 
         logger.debug("finish token to type map")
 
     # do graph propogations
-    def graph_props(self, iter_num):
+    def graph_props(self, iter_num, label_count):
         # get empirical count for each label type
-        label_count = 20
         logger.debug("start graph propogating with iteration number {iter_num} %d" % iter_num)
         count_r = self.ngramlist_and_sents2cr(label_count)
         r = self.build_r(count_r)
@@ -322,18 +326,19 @@ class Graph:
         u_y = 1 / label_count
         for i in range(iter_num):
             # delta = 1 is ngram is labeled
+            start = timeit.default_timer()
             for n_idx, ngram in enumerate(self.ngram_prob_map):
                 neighbour_sum = self.neighbour_sum(ngram)
                 weight_sum = self.neighbour_weight_sum(ngram)
                 gamma_u = self.delta(ngram) * r[ngram] + mu * neighbour_sum + nu * u_y
                 kappa_u = self.delta(ngram) + nu + mu * weight_sum
                 self.new_prob_map[ngram] = gamma_u / kappa_u
+            end = timeit.default_timer()
+            logger.debug("finish 1 iteration of graph propagation with time cost %d" % end-start)
 
             # compare labels before and after propogation for debugging
             match_cnt = 0
             change_cnt = 0
-            none_o_cnt = 0
-            none_o_change_cnt = 0
             for ngram, cnt in self.ngram_counters.items():
                 a = self.ngram_prob_map[ngram]
                 b = self.new_prob_map[ngram]
@@ -343,16 +348,10 @@ class Graph:
                 b_idx = b_idx.cpu().item()
                 if a_idx == b_idx:
                     match_cnt += 1
-                    if a_idx != 2:
-                        none_o_cnt += 1
                 else:
                     change_cnt += 1
-                    if a_idx != 2:
-                        none_o_change_cnt += 1
 
             logger.debug("after one propogate, accuracy rate : %d" % (match_cnt / (match_cnt + change_cnt)))
-            logger.debug("after one propogate, none O label accuracy rate : %d" % (none_o_cnt /
-                                                                                   (none_o_cnt + none_o_change_cnt)))
             self.ngram_prob_map = self.new_prob_map
             logger.debug("finish propogate iteration : %d" % i)
 
@@ -397,13 +396,12 @@ class Graph:
             sum_list.append((v_probs * v_weight).view(1, -1))
 
         sum_tensor = torch.cat(sum_list, dim=0)
-        return torch.sum(sum_tensor, dim=0).cpu()
+        return torch.sum(sum_tensor, dim=0)
 
     # get sum of neighbour nodes weights
     def neighbour_weight_sum(self, u):
         u_idx = self.ngram_dict[u]
-        weight_list = self.graph_weight_map[u_idx]
-        return sum(weight_list)
+        return torch.sum(self.graph_weight_map[u_idx])
 
     # check if ngram is labeled or not
     def delta(self, ngram):
@@ -437,7 +435,7 @@ class Graph:
         for decode_sent, mask_sent in zip(decode_seq, self.tag_mask):
             assert len(decode_sent) == ((mask_sent != 0).sum())
 
-    def generate_retrain_data(self):
+    def update_train_data(self):
         return
 
     def retrain_crf(self):

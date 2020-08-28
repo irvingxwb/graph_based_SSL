@@ -88,7 +88,7 @@ class Dataset:
 
         # select and combine dataset
         l_select_num = 1000
-        u_select_num = 1000
+        u_select_num = 0
         self.labeled_train_texts = self.labeled_train_texts[0:l_select_num]
         self.labeled_train_labels = self.labeled_train_labels[0:l_select_num]
         self.unlabeled_train_texts = self.unlabeled_train_texts[0:u_select_num]

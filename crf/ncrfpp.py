@@ -349,13 +349,8 @@ def train(data):
         dev_finish = time.time()
         dev_cost = dev_finish - epoch_finish
 
-        if data.seg:
-            current_score = f
-            print("Dev: time: %.2fs, speed: %.2fst/s; acc: %.4f, p: %.4f, r: %.4f, f: %.4f" % (
-            dev_cost, speed, acc, p, r, f))
-        else:
-            current_score = acc
-            print("Dev: time: %.2fs speed: %.2fst/s; acc: %.4f" % (dev_cost, speed, acc))
+        current_score = acc
+        print("Dev: time: %.2fs speed: %.2fst/s; acc: %.4f" % (dev_cost, speed, acc))
 
         if current_score > best_dev:
             if data.seg:
@@ -415,11 +410,13 @@ class NCRFpp:
 
     def decode_marginals(self):
         logger.info("model: decode")
+
         self.model = SeqLabel(self.data)
         self.model.load_state_dict(torch.load(self.data.load_model_dir))
         self.model.eval()
         batch_size = self.data.HP_batch_size
-        instances = self.data.l_train_Ids + self.data.u_train_Ids
+
+        instances = self.data.train_Ids
 
         # decode labeled data
         tag_seq = []
@@ -445,8 +442,6 @@ class NCRFpp:
             # build return values
             batch_seq, batch_probs, batch_mask = recover_label_probs(temp_seq, temp_probs, mask, batch_wordrecover)
 
-            # temp_seq = self.model(batch_word, batch_features, batch_wordlen, batch_char, batch_charlen,
-            #                       batch_charrecover, mask, prob=False)
             tag_seq += batch_seq
             tag_seq_probs += batch_probs
             tag_seq_mask += batch_mask
@@ -456,10 +451,11 @@ class NCRFpp:
     def evaluate_tags(self, tag_seq, labels):
         match_cnt = 0
         total_cnt = 0
-        for s_idx, sent_labels in enumerate(labels):
-            for idx, label in enumerate(sent_labels):
-                tag = tag_seq[s_idx][idx]
-                tag_label = self.data.label_alphabet.get_instance(tag)
+        for s_idx, tag_sent in enumerate(tag_seq):
+            for idx, tag in enumerate(tag_sent):
+                if idx < len(labels[s_idx]):
+                    tag_label = self.data.label_alphabet.get_instance(tag)
+                    label = labels[s_idx][idx]
                 total_cnt += 1
                 if label == tag_label:
                     match_cnt += 1

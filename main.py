@@ -65,7 +65,7 @@ if __name__ == '__main__':
     # debug mode flags, use all prestored data for debugging
     load_pmi = False
     load_graph = False
-    load_crf = False
+    load_crf = True
 
     # add crf data structure to main data set
     data_set = Dataset()
@@ -99,29 +99,32 @@ if __name__ == '__main__':
     # initialize crf
     crf = NCRFpp()
     crf.build_crf(data_set)
+
     if not load_crf:
         # train crf, time consuming
         crf.train_crf("train")
-        tag_seq, tag_probs, tag_mask = crf.decode_marginals()
+        # labeled + unlabeled data
+        tag_labels, tag_probs, tag_mask = crf.decode_marginals()
         # tag sequence contain unlabeled data tags, only evaluate tags with labeled data
-        acc = crf.evaluate_tags(tag_seq, data_set.labeled_train_labels)
+        acc = crf.evaluate_tags(tag_labels, data_set.labeled_train_labels)
         logger.debug("decode accuracy on labeled data: %s" % str(acc))
-        save_crf_result(tag_seq, tag_probs, tag_mask, args.crf_dir)
+        save_crf_result(tag_labels, tag_probs, tag_mask, args.crf_dir)
+        graph.update_train_result(tag_labels, tag_probs, tag_mask)
         logger.debug("finish crf train")
     else:
-        tag_seq, tag_probs, tag_mask = load_crf_result(args.crf_dir)
-        acc = crf.evaluate_tags(tag_seq, data_set.labeled_train_labels)
-        graph.update_train_result(tag_seq, tag_probs, tag_mask)
+        tag_labels, tag_probs, tag_mask = load_crf_result(args.crf_dir)
+        acc = crf.evaluate_tags(tag_labels, data_set.labeled_train_labels)
+        graph.update_train_result(tag_labels, tag_probs, tag_mask)
         logger.debug("load crf result from file")
 
-    graph.update_train_result(tag_seq, tag_probs, tag_mask)
-    logger.debug("sequence length %d" % len(tag_seq))
+    logger.debug("sequence length %d" % len(tag_labels))
 
     # token to type map
-    graph.token2type_map(flag='train')
+    # parameter : train text for decode
+    graph.token2type_map(data_set.labeled_train_texts + data_set.unlabeled_train_texts)
 
     # graph propogations
-    graph.graph_props(iter_num=5)
+    graph.graph_props(iter_num=5, label_count=crf.data.label_alphabet_size)
 
     # Viterbi decoding
     graph.viterbi_decode()

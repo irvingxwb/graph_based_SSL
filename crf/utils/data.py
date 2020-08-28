@@ -54,14 +54,12 @@ class Data:
         self.char_emb_dir = None
         self.feature_emb_dirs = []
 
-        self.train_texts = []
         self.l_train_texts = []
         self.u_train_texts = []
         self.dev_texts = []
         self.test_texts = []
         self.raw_texts = []
 
-        self.train_Ids = []
         self.l_train_Ids = []
         self.u_train_Ids = []
         self.dev_Ids = []
