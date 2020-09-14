@@ -7,3 +7,12 @@ sample labeled data: PennTreebank-WSJ
 
 sample unlabeled data: PubMed 
 
+# TODO:
+1. finish cross-domain adaptation work
+2. improve the model's performance
+
+# Build
+1. training parameters are in train_config.yaml
+2. To run the demo simply '''python main.py''' after install all requirements with '''pip install -requirements.txt'''
+
+
