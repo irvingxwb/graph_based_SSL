@@ -11,7 +11,9 @@ sample unlabeled data: PubMed
 1. finish cross-domain adaptation work
 2. improve the model's performance
 
-# ##Train:
+### Train:
+not finished yet, this project could not be runnable now
+
 1. training parameters are in train_config.yaml
 2. To run the demo simply `python main.py` after install all requirements with `pip install -requirements.txt`
 
